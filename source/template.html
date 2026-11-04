@@ -1,0 +1,303 @@
+<title>Donjon Mystère Ultimate</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Lilita+One&family=Pixelify+Sans:wght@500;700&display=swap">
+<style>
+/*__CSS__*/
+</style>
+
+<main class="app" id="app">
+  <!-- TITRE -->
+  <section id="scr-title" class="screen" hidden>
+    <canvas id="titleCanvas" class="bgcanvas" aria-hidden="true"></canvas>
+    <div class="title-wrap">
+      <div class="logo" role="img" aria-label="Donjon Mystère Ultimate">
+        <svg class="logo-star" viewBox="-50 -50 100 100" aria-hidden="true"><circle r="44" class="ls-ring"></circle><polygon class="ls-star" points="0.0,-48.0 5.0,-12.0 22.6,-22.6 12.0,-5.0 48.0,0.0 12.0,5.0 22.6,22.6 5.0,12.0 0.0,48.0 -5.0,12.0 -22.6,22.6 -12.0,5.0 -48.0,0.0 -12.0,-5.0 -22.6,-22.6 -5.0,-12.0"></polygon><circle r="7" class="ls-gem"></circle></svg>
+        <span class="logo-w1">Donjon</span>
+        <span class="logo-w2">Mystère</span>
+        <span class="logo-rib"><span>Ultimate</span></span>
+      </div>
+      <div class="title-menu">
+        <button type="button" id="btnContinue" class="btn primary big" hidden>Continuer</button>
+        <button type="button" id="btnNew" class="btn big">Nouvelle partie</button>
+        <button type="button" id="btnOptions" class="btn ghost">Options</button>
+        <button type="button" id="btnGraphics" class="btn ghost modo-only" hidden>Graphics</button>
+      </div>
+      <p class="title-foot pix" id="titleFoot"></p>
+    </div>
+  </section>
+
+  <!-- SCÈNES (lancement, voix, chapitre) -->
+  <section id="scr-scene" class="screen" hidden>
+    <canvas id="sceneCanvas" class="bgcanvas" aria-hidden="true"></canvas>
+    <p id="splash" class="splash" hidden></p>
+    <div id="logoWrap" class="logo-wrap" hidden>
+      <div class="logo" role="img" aria-label="Donjon Mystère Ultimate">
+        <svg class="logo-star" viewBox="-50 -50 100 100" aria-hidden="true"><circle r="44" class="ls-ring"></circle><polygon class="ls-star" points="0.0,-48.0 5.0,-12.0 22.6,-22.6 12.0,-5.0 48.0,0.0 12.0,5.0 22.6,22.6 5.0,12.0 0.0,48.0 -5.0,12.0 -22.6,22.6 -12.0,5.0 -48.0,0.0 -12.0,-5.0 -22.6,-22.6 -5.0,-12.0"></polygon><circle r="7" class="ls-gem"></circle></svg>
+        <span class="logo-w1">Donjon</span>
+        <span class="logo-w2">Mystère</span>
+        <span class="logo-rib"><span>Ultimate</span></span>
+      </div>
+      <p id="logoSub" class="logo-sub" hidden></p>
+    </div>
+    <p id="skipHint" class="skip-hint" hidden>Touche l’écran pour passer</p>
+    <div id="holdWrap" class="hold" hidden>
+      <p id="holdText" class="hold-text"></p>
+      <button type="button" id="holdBtn" class="hold-btn" aria-label="Garde le doigt appuyé">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="hold-track"></circle><circle id="holdRing" cx="60" cy="60" r="54" class="hold-ring"></circle></svg>
+        <span class="hold-hand"></span>
+      </button>
+    </div>
+    <div id="picker" class="picker" hidden>
+      <div class="pk-card">
+        <p id="pkTitle" class="pk-title"></p>
+        <div id="pkGrid" class="pk-grid"></div>
+        <button type="button" id="pkMore" class="btn ghost small">Voir toutes les créatures de base</button>
+      </div>
+    </div>
+    <div id="letterPanel" class="letter" hidden>
+      <div class="lt-paper">
+        <p id="ltHead" class="lt-head"></p>
+        <h3 id="ltTitle" class="lt-title"></h3>
+        <p id="ltBody" class="lt-body"></p>
+        <div id="ltFields" class="lt-fields"></div>
+        <p class="lt-tap">Touche pour replier la lettre</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MENU D'ACCUEIL -->
+  <section id="scr-hub" class="screen" hidden>
+    <canvas id="hubCanvas" class="bgcanvas" aria-hidden="true"></canvas>
+    <header class="hub-top">
+      <div class="prof">
+        <canvas id="pfFace" class="pf-face"></canvas>
+        <div class="pf-id"><b id="pfName"></b><span id="pfLv" class="pix"></span></div>
+      </div>
+      <div class="res">
+        <span class="res-i" title="Pièces"><i class="ic ic-coin"></i><b id="pfMoney" class="pix">0</b></span>
+        <span class="res-i" title="Badges"><i class="ic ic-badge"></i><b id="pfBadges" class="pix">0</b></span>
+        <span class="res-i" title="Éclats d’étoile"><i class="ic ic-shard"></i><b id="pfShards" class="pix">0</b></span>
+      </div>
+    </header>
+    <nav class="hub-grid">
+      <button type="button" class="hub-b" data-hub="histoire"><i class="hb-i hb-book"></i><span>Histoire</span></button>
+      <button type="button" class="hub-b main" data-hub="donjon"><i class="hb-i hb-door"></i><span>Donjon</span></button>
+      <button type="button" class="hub-b wide" data-hub="royaume" id="hubRoyaume" hidden><i class="hb-i hb-castle"></i><span>Royaume</span></button>
+      <button type="button" class="hub-b" data-hub="quetes"><i class="hb-i hb-scroll"></i><span>Quêtes</span></button>
+      <button type="button" class="hub-b" data-hub="invoc"><i class="hb-i hb-star"></i><span>Invocations</span></button>
+      <button type="button" class="hub-b" data-hub="equipe"><i class="hb-i hb-team"></i><span>Équipe</span></button>
+      <button type="button" class="hub-b" data-hub="params"><i class="hb-i hb-gear"></i><span>Paramètres</span></button>
+    </nav>
+    <div class="hub-bottom">
+      <button type="button" class="btn ghost small" id="btnHubTitle">Écran titre</button>
+      <button type="button" class="btn ghost small modo-only" id="btnHubGraphics" hidden>Graphics</button>
+    </div>
+  </section>
+
+  <!-- CARTE -->
+  <section id="scr-map" class="screen" hidden>
+    <canvas id="mapCanvas" class="bgcanvas" aria-hidden="true"></canvas>
+    <header class="map-top">
+      <div class="map-team" id="mapTeam"></div>
+    </header>
+    <div class="map-nodes" id="mapNodes"></div>
+    <p class="map-hint" id="mapHint">Touche la Forêt Verdoyante pour partir à la poursuite des voleurs.</p>
+    <div class="loc-card" id="locCard" hidden></div>
+    <nav class="map-nav">
+      <button type="button" class="btn small" id="btnMapTeam">Équipe</button>
+      <button type="button" class="btn small" id="btnMapBag">Sac</button>
+      <button type="button" class="btn small ghost" id="btnMapBack">Retour</button>
+    </nav>
+  </section>
+
+  <!-- DONJON (plein écran) -->
+  <section id="scr-dungeon" class="screen" hidden>
+    <canvas id="dgCanvas" aria-label="Donjon"></canvas>
+    <div class="hud">
+      <div class="hud-row">
+        <div class="hud-place"><span id="hudLoc"></span><b id="hudFloor" class="pix"></b></div>
+        <div class="belly" id="huBelly" title="Ventre"><span>Ventre</span><b class="pix">100</b></div>
+        <button type="button" class="hb hb-bag" id="btnBag" aria-label="Sac">Sac <b class="pix">0/10</b></button>
+        <button type="button" class="hb" id="btnPause">Menu</button>
+      </div>
+      <div class="hud-tour" id="hudTour" hidden></div>
+      <div class="hud-units">
+        <div class="hu" id="huHero"><span class="hu-name"></span><span class="hu-lv pix"></span><span class="hpbar"><i></i></span><span class="hu-hp pix"></span></div>
+        <div class="hu small" id="huPartner"><span class="hu-name"></span><span class="hu-lv pix"></span><span class="hpbar"><i></i></span><span class="hu-hp pix"></span></div>
+        <div class="hu small ally" id="huRecruit" hidden><span class="hu-name"></span><span class="hu-lv pix"></span><span class="hpbar"><i></i></span><span class="hu-hp pix"></span></div>
+      </div>
+    </div>
+    <canvas id="miniCanvas" aria-hidden="true"></canvas>
+    <div id="stick" class="stick" hidden><span id="stickKnob" class="stick-knob"></span></div>
+    <div id="tip" class="tip" hidden></div>
+    <div id="hint" class="hint" hidden>
+      <p><b>Glisse ton doigt</b> pour te déplacer, comme sur une manette.</p>
+      <p><b>Touche un ennemi</b> à côté de toi pour l’attaquer, ou au loin si une capacité le permet.</p>
+      <p><b>Maintiens ton doigt</b> sur toi : la roue d’actions s’ouvre. Glisse vers une capacité et lâche. Sur un allié ou le décor : infos.</p>
+      <p><b>Double-tape</b> sur toi pour une attaque rapide. Le <b>Sac</b> est en haut de l’écran.</p>
+      <p class="hint-ok">Touche pour commencer</p>
+    </div>
+    <button type="button" id="btnStairs" class="btn primary" hidden>Descendre l’escalier</button>
+    <div id="wheel" class="wheel" hidden><div id="wheelRing" class="wheel-ring"></div></div>
+    <div id="log" class="log" hidden></div>
+  </section>
+
+  <!-- ROYAUME (chapitre 2) -->
+  <section id="scr-royaume" class="screen" hidden>
+    <canvas id="rmCanvas" aria-label="Le Royaume"></canvas>
+    <div class="rm-top">
+      <div class="rm-place"><b id="rmPlace">Place du Royaume</b></div>
+      <span class="res-i rm-money" title="Pièces"><i class="ic ic-coin"></i><b id="rmMoney" class="pix">0</b></span>
+      <button type="button" class="hb" id="rmBag">Sac</button>
+      <button type="button" class="hb" id="rmMenu">Menu</button>
+      <p class="rm-obj" id="rmObj" hidden></p>
+    </div>
+    <div id="rmStick" class="stick" hidden><span id="rmKnob" class="stick-knob"></span></div>
+  </section>
+
+  <!-- GRAPHICS (réservé au propriétaire) -->
+  <section id="scr-studio" class="screen scroll" hidden>
+    <header class="bar">
+      <button type="button" class="icon-btn" id="stBack" aria-label="Retour">‹</button>
+      <h2>Graphics</h2>
+    </header>
+    <div class="atl-body">
+      <p class="atl-where" id="stWhere"></p>
+      <p class="sheet-note">Remplace n’importe quelle image ou ajoute tes musiques. Les modèles à la bonne taille sont dans ton dossier <code>graphics</code> et <code>asset_templates</code>.</p>
+      <div class="tabs" id="stTabs" role="tablist"></div>
+      <div class="st-list" id="stList"></div>
+    </div>
+  </section>
+
+  <!-- ATELIER -->
+  <section id="scr-atelier" class="screen scroll" hidden>
+    <header class="bar">
+      <button type="button" class="icon-btn" id="atlBack" data-back="title" aria-label="Retour">‹</button>
+      <h2>Atelier</h2>
+    </header>
+    <div class="atl-body">
+      <p class="atl-where" id="atlWhere"></p>
+      <div class="tabs" id="atlTabs" role="tablist">
+        <button type="button" data-tab="mons" class="on">Créatures</button>
+        <button type="button" data-tab="atks">Attaques</button>
+        <button type="button" data-tab="items">Objets</button>
+        <button type="button" data-tab="types">Types</button>
+        <button type="button" data-tab="tools">Outils</button>
+        <button type="button" data-tab="folder">Dossier</button>
+        <button type="button" data-tab="hist">Historique</button>
+        <button type="button" data-tab="json">Données JSON</button>
+        <button type="button" data-tab="help">Aide</button>
+      </div>
+      <div class="atl-pane" id="atl-mons">
+        <div class="atl-list" id="atlMonList"></div>
+        <button type="button" class="btn" id="btnNewMon">Ajouter une créature</button>
+      </div>
+      <div class="atl-pane" id="atl-atks" hidden>
+        <div class="atl-list" id="atlAtkList"></div>
+        <button type="button" class="btn" id="btnNewAtk">Ajouter une attaque</button>
+      </div>
+      <div class="atl-pane" id="atl-items" hidden>
+        <div class="atl-list" id="atlItemList"></div>
+        <button type="button" class="btn" id="btnNewItem">Ajouter un objet</button>
+      </div>
+      <div class="atl-pane" id="atl-types" hidden></div>
+      <div class="atl-pane" id="atl-tools" hidden></div>
+      <div class="atl-pane" id="atl-folder" hidden></div>
+      <div class="atl-pane" id="atl-hist" hidden></div>
+      <div class="atl-pane" id="atl-json" hidden>
+        <div class="seg" id="jsonKinds">
+          <button type="button" data-kind="monsters" class="on">monsters.json</button>
+          <button type="button" data-kind="attacks">attacks.json</button>
+          <button type="button" data-kind="items">items.json</button>
+          <button type="button" data-kind="locations">locations.json</button>
+        </div>
+        <textarea id="jsonText" class="json" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Contenu JSON"></textarea>
+        <p class="json-err" id="jsonErr" role="alert"></p>
+        <div class="row-btns">
+          <button type="button" class="btn primary" id="btnJsonApply">Appliquer</button>
+          <button type="button" class="btn" id="btnJsonCopy">Copier</button>
+          <button type="button" class="btn" id="btnJsonDl" hidden>Télécharger</button>
+          <button type="button" class="btn ghost" id="btnJsonReset">Valeurs d’origine</button>
+        </div>
+      </div>
+      <div class="atl-pane help" id="atl-help" hidden>
+        <h3>Même format que ton prototype Godot</h3>
+        <p>Les trois listes reprennent tes fichiers <code>monsters.json</code>, <code>attacks.json</code> et <code>locations.json</code>. Tu peux coller ici le contenu de tes fichiers, ou copier le résultat pour le remettre dans ton projet.</p>
+        <h3>Champs ajoutés (tous optionnels)</h3>
+        <ul>
+          <li><code>form</code> (créature) : l’apparence dessinée quand il n’y a pas de sprite : blob, ghost, rock, leaf, orb, crystal, bug, fish, mole, swirl, armor.</li>
+          <li><code>range</code> (attaque) : <code>front</code> (case devant), <code>line</code> (en ligne droite, 6 cases), <code>room</code> (toute la salle), <code>self</code> (sur soi, pour <code>heal</code>). <code>hit_all</code> vaut <code>room</code>.</li>
+          <li><code>floors</code> et <code>boss</code> (lieu) : nombre d’étages (le dernier est l’antre du gardien) et id de la créature gardienne. <code>level</code> : niveau des ennemis au premier étage.</li>
+          <li><code>stage</code> (créature) : 1 pour une forme de base. Les autres valeurs ne sont pas proposées au début du jeu.</li>
+        </ul>
+        <p>Effets reconnus : <code>lower_accuracy</code>, <code>flinch</code>, <code>lower_speed</code>, <code>paralyze</code>, <code>freeze</code>, <code>burn</code>, <code>hit_all</code>, <code>ignore_defense</code>, <code>sleep</code>, <code>heal</code>.</p>
+        <p>Les attaques A14 et A15, utilisées par Gelamour et Flamèche, manquaient dans le prototype : elles ont été ajoutées.</p>
+        <h3>Sprites au format PMD</h3>
+        <p>Dans la fiche d’une créature, touche « Importer un sprite PMD » et choisis <code>AnimData.xml</code> avec les feuilles <code>Walk-Anim.png</code>, <code>Idle-Anim.png</code>, <code>Attack-Anim.png</code>, <code>Hurt-Anim.png</code> et <code>Sleep-Anim.png</code> (seul Walk est obligatoire). Un .zip du dossier marche aussi. Ajoute <code>Normal.png</code> pour le portrait des dialogues.</p>
+        <p>Les 8 lignes de chaque feuille sont lues dans l’ordre PMD : bas, bas-droite, droite, haut-droite, haut, haut-gauche, gauche, bas-gauche.</p>
+        <h3>Commandes</h3>
+        <ul>
+          <li>Glisse ton doigt n’importe où pour marcher (pad virtuel, 8 directions).</li>
+          <li>Touche un ennemi à côté pour l’attaquer, ou au loin si tu as une capacité en ligne.</li>
+          <li>Maintiens ton doigt sur toi : la <b>roue d’actions</b> s’ouvre. Glisse vers une case et lâche (ou lâche au centre puis touche une case). Le bouton Menu ouvre aussi la roue.</li>
+          <li><b>Double-tape</b> sur toi : attaque de base. Tape simple sur toi quand tu es sur un objet : tu le ramasses.</li>
+          <li>Le <b>Sac</b> est en haut de l’écran : utiliser, donner à un coéquipier ou poser l’objet au sol (il apparaît sur la case).</li>
+          <li>Les ennemis lâchent parfois des objets ou des pièces (taux de drop : sauvages 30 %, équipes rivales 60 %, ou le champ <code>drop_rate</code> d’une créature).</li>
+          <li>Si ton héros <b>ou ton partenaire</b> tombe K.O., la partie est perdue. Le 3e membre peut tomber sans faire perdre.</li>
+          <li>Clavier : flèches ou ZQSD, 1-9 du pavé numérique pour les diagonales, Espace pour attaquer, E roue d’actions, G ramasser, M menu, I sac, T attendre.</li>
+        </ul>
+        <h3>Atelier des attaques</h3>
+        <ul>
+          <li><b>Attaques</b> : liste, modification (puissance, précision, PP, portée, effet, chance d’effet), duplication.</li>
+          <li><b>Outils</b> : créer une attaque en la décrivant avec une phrase (ou avec l’IA de Claude depuis le lien en ligne), optimiser les stats d’une créature selon un rôle, fusionner deux attaques, vérifier l’équilibrage.</li>
+          <li><b>Dossier</b> : importer ton dossier <code>creatures</code> (id001 à id2000) ou un .zip, et récupérer tes créatures en fichiers.</li>
+          <li><b>Historique</b> : chaque enregistrement garde la version d’avant. Ce que tu supprimes va dans la corbeille. Rien n’est effacé sans ton accord.</li>
+        </ul>
+        <p>Nouveaux effets : <code>poison</code>, <code>drain</code>, <code>lower_defense</code>. Nouveau champ d’attaque : <code>chance</code> (0 à 100, probabilité de l’effet). Nouveau champ de créature : <code>drop_rate</code>.</p>
+        <h3>Le scénario</h3>
+        <p>Les trois voleurs du chapitre 1 sont tirés au hasard parmi les créatures de base à chaque nouvelle partie. Les créatures avec <code>"stage": 1</code> (ou sans ce champ) sont proposées au début du jeu.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- FEUILLE (menus) -->
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <h3 id="sheetTitle"></h3>
+    <div class="sheet-body" id="sheetBody"></div>
+    <div class="sheet-actions" id="sheetActions"></div>
+  </div>
+</div>
+<!-- DIALOGUE -->
+<div id="dialog" class="dialog" hidden>
+  <div class="dlg-box">
+    <canvas class="dlg-portrait" id="dlgPortrait"></canvas>
+    <div class="dlg-main">
+      <span class="dlg-name" id="dlgName"></span>
+      <p class="dlg-text" id="dlgText"></p>
+    </div>
+    <span class="dlg-next" aria-hidden="true">▼</span>
+  </div>
+</div>
+<div id="choice" class="choice" hidden></div>
+<div id="nameBox" class="name-box" hidden>
+  <div class="nb-card">
+    <label id="nameTitle" class="nb-title" for="nameIn"></label>
+    <input id="nameIn" type="text" maxlength="12" autocomplete="off" spellcheck="false">
+    <button type="button" id="nameOk" class="btn primary">Valider</button>
+  </div>
+</div>
+<div id="flash" class="flash" hidden></div>
+<div id="fade" class="fade" hidden></div>
+<div id="floorCard" class="floor-card" hidden><p id="fcLoc"></p><b id="fcFloor" class="pix"></b></div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+(function () {
+"use strict";
+/*__JS__*/
+})();
+</script>

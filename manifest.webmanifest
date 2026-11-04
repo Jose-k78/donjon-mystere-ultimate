@@ -1,0 +1,16 @@
+{
+  "name": "Donjon Mystère Ultimate",
+  "short_name": "Donjon Mystère",
+  "description": "Fan game fait par moi et pour moi : José.",
+  "lang": "fr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0b1a24",
+  "theme_color": "#12304a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
