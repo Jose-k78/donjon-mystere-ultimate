@@ -99,7 +99,7 @@ function renderDungeon(now) {
       drawShadow(ctx, fx, fy, T, sc);
       if (u.fac && !o.ghost) { const tm = tourTeam(u.fac); ctx.strokeStyle = (tm && tm.col) || "#ff6f61"; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.ellipse(fx, fy - T * 0.04, T * 0.34, T * 0.12, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     }
-    drawCreature(ctx, u.mid, fx, fy, T, { t: now + (hashStr(u.uid) % 1000), dir: u.dir, moving: isMoving(u, now), flash, alpha, sleep: (u.st.sleep > 0) || (u.dormant && false), scale: sc, anim });
+    drawCreature(ctx, u.mid, fx, fy, T, { t: now + (hashStr(u.uid) % 1000), dir: u.dir, moving: isMoving(u, now), flash, alpha, sleep: (u.st.sleep > 0) || (u.dormant && false), scale: sc, anim, shadow: u.shadow });
     if (u.st.frozen > 0) { ctx.fillStyle = "rgba(170,230,255,0.45)"; ctx.fillRect(fx - T * 0.36 * sc, fy - T * 0.78 * sc, T * 0.72 * sc, T * 0.74 * sc); }
     const badges = [];
     if (u.st.para > 0) badges.push(["⚡", "#ffd23f"]);
@@ -203,7 +203,7 @@ function updateHud(dt) {
   if (!R) return;
   const loc = locById(R.loc);
   setTxt("loc", $("#hudLoc"), loc.name);
-  setTxt("floor", $("#hudFloor"), R.arena ? "Arène" : R.boss ? (R.loc === "TOURNOI" ? "Finale" : "Gardien") : "É" + R.floor + "/" + (R.loc === "TOURNOI" ? 7 : R.floors));
+  setTxt("floor", $("#hudFloor"), R.arena ? "Arène" : R.boss ? (R.loc === "TOURNOI" ? "Finale" : R.siege ? "Siège" : "Gardien") : "É" + R.floor + "/" + (R.loc === "TOURNOI" ? 7 : R.floors));
   $("#huRecruit").hidden = !G.team[2];
   setTxt("bagn", $("#btnBag b"), G.bag.length + "/" + BAG_MAX);
   const tt = typeof tourHudText === "function" ? tourHudText() : null;
@@ -263,7 +263,9 @@ function dungeonAct(fn) {
   return used;
 }
 onTurnEnd = () => {
+  const sf = (R.story && !R.gameOver && typeof storyTurnHook === "function") ? storyTurnHook() : null;
   if (R.gameOver) DG.pending = seqGameOver;
+  else if (sf) DG.pending = sf;
   else if (R.recruitOffer) DG.pending = seqRecruitOffer;
   else if (R.tourAllOut === true && !R.boss) { R.tourAllOut = "done"; DG.pending = seqTourFinal; }
   else if (R.bossDefeated) DG.pending = seqCleared;
@@ -304,7 +306,7 @@ async function goDown() {
   sfx("stairs");
   const loc = locById(R.loc);
   const fc = $("#floorCard"); fc.hidden = false; fc.classList.remove("out");
-  $("#fcLoc").textContent = loc.name; $("#fcFloor").textContent = R.floor + 1 >= R.floors ? (R.loc === "TOURNOI" ? "Arène finale" : "Antre du gardien") : "Étage " + (R.floor + 1);
+  $("#fcLoc").textContent = loc.name; $("#fcFloor").textContent = R.floor + 1 >= R.floors ? (R.loc === "TOURNOI" ? "Arène finale" : loc.tower ? "Étage 100 · Le sommet" : loc.siege ? "Cœur du glacier" : "Antre du gardien") : "Étage " + (R.floor + 1) + (loc.tower ? " / 100" : "");
   await wait(250);
   nextFloor();
   DG.maskGrid = null; DG.snow = null; DG.stairsAsked = false;
@@ -312,31 +314,35 @@ async function goDown() {
   await wait(900);
   fc.classList.add("out"); await wait(380); fc.hidden = true;
   DG.transition = false;
-  if (R.boss) { setMusic("bgm.boss"); await bossIntro(); }
+  if (R.story && typeof storyOnFloor === "function") await storyOnFloor();
+  if (R.boss && !R.siege && R.enemies.some(e => e.boss && e.dormant)) { setMusic("bgm.boss"); await bossIntro(); }
 }
 async function bossIntro() {
   const b = R.enemies.find(e => e.boss);
   if (!b) return;
   DG.transition = true;
-  await runDialog(R.loc === "TOURNOI" ? CH2.finalIntro : R.crew ? CH1.bossIntro : STORY.bossIntro, { bossMid: b.mid });
+  const sl = R.story && typeof storyBossLines === "function" ? storyBossLines() : null;
+  await runDialog(sl || (R.loc === "TOURNOI" ? CH2.finalIntro : R.crew ? CH1.bossIntro : STORY.bossIntro), { bossMid: b.mid, bossName: b.nick || null });
   for (const e of R.enemies) { e.dormant = false; e.aware = true; }
   DG.transition = false;
 }
-async function enterDungeon(locId) {
+async function enterDungeon(locId, startFloor) {
   MAPSEL = null;
-  startRun(locId);
+  startRun(locId, startFloor);
   Store.saveGame(G);
   showScreen("dungeon");
   DG.transition = true; DG.pending = null; DG.path = null; DG.maskGrid = null; DG.snow = null; DG.dispHP = {}; DG.hud = {}; DG.stairsAsked = false;
   renderLog();
   const loc = locById(locId);
-  await floorCard(loc.name, "Étage 1");
+  await floorCard(loc.name, R.boss && loc.tower ? "Étage 100 · Le sommet" : "Étage " + R.floor + (loc.tower ? " / 100" : ""));
   DG.transition = false;
   setMusic(locId === "ARENE" ? "bgm.boss" : "bgm.donjon." + locId);
   msgNow("Tu entres dans ", { t: loc.name, c: "mv" }, ".");
   if (R.arena) { DG.transition = true; await runDialog([{ who: "presenter", text: "Match d’arène ! L’équipe de {name} contre " + R.tour.teams.map(t => t.name).join(", ") + " ! Que le meilleur gagne !" }]); DG.transition = false; }
   else if (R.tour) msgNow({ t: "Trois équipes rôdent dans le donjon. Élimine-les toutes !", c: "good" });
   if (!OPTS.hintSeen) showHint();
+  if (locId === "L00" && !G.story.ch1Done && CH1.floor1 && !G.story.floor1Seen) { G.story.floor1Seen = true; DG.transition = true; await runDialog(CH1.floor1); DG.transition = false; }
+  if (R.story && typeof storyOnFloor === "function") { await storyOnFloor(); if (R && R.boss && !R.siege && R.enemies.some(e => e.boss && e.dormant)) { setMusic("bgm.boss"); await bossIntro(); } }
 }
 // Toutes les équipes ont quitté le donjon : téléportation vers l'arène finale
 async function seqTourFinal() {
@@ -364,14 +370,14 @@ function resumeDungeon() {
 async function seqGameOver() {
   DG.transition = true;
   await wait(700);
-  const locId = R.loc, bag = R.bagStart || [], money = R.moneyStart || 0, lostBy = R.lostBy;
+  const locId = R.loc, bag = R.bagStart || [], money = R.moneyStart || 0, lostBy = R.lostBy, wasStory = !!R.story, wasReplay = !!R.replay;
   endRun();
   G.bag = bag.slice(); G.money = money;
   Store.saveGame(G);
   DG.transition = false; DG.pending = null;
   openSheet({
     title: "K.O. !", body: el("p", "sheet-text", (lostBy === "partner" ? fillTpl("{partner} est tombé K.O. : sans ton partenaire, l’exploration s’arrête. ") : "") + (locId === "TOURNOI" ? "L’équipe est éliminée du tournoi." : CH1.defeat)), noDismiss: true, actions: [
-      { label: "Recommencer", cls: "primary", fn: async () => { if (locId === "TOURNOI" && !G.story.ch2Done) { showScreen("scene"); sceneReset("arena"); await runDialog(CH2.retry); } enterDungeon(locId); } }
+      { label: wasStory && locId === "S_TOUR" ? "Reprendre au relais (étage " + ((G.story.c5 && G.story.c5.ck) || 1) + ")" : "Recommencer", cls: "primary", fn: async () => { if (wasStory) { startStoryMission(locId, locId === "S_TOUR" ? (G.story.c5 && G.story.c5.ck) || 1 : 1, { replay: wasReplay, arc: typeof arcOfMission === "function" ? arcOfMission(locId) : null }); return; } if (locId === "TOURNOI" && !G.story.ch2Done) { showScreen("scene"); sceneReset("arena"); await runDialog(CH2.retry); } enterDungeon(locId); } }
     ].concat(G.story.ch1Done && (G.story.step || "").startsWith("ch2") || G.story.ch2Done ? [{ label: "Retour au Royaume", cls: "ghost", fn: () => goRoyaume() }] : [])
   });
 }
@@ -387,8 +393,11 @@ async function seqEscape() {
 async function seqCleared() {
   DG.transition = true;
   await wait(700);
+  if (R.story && typeof storyCleared === "function") { DG.transition = false; await storyCleared(); return; }
   const loc = locById(R.loc);
   const money = R.money || 0, startLv = R.startLv;
+  const called = G.team.find(u => u.oathFriend); if (called && typeof bondAdd === "function") bondAdd(called.oathFriend, 3);
+  if (G.story.ch2Done && typeof bondAdd === "function") bondAdd("partner", 2);
   if (loc.crew && !G.story.ch1Done) {
     endRun();
     DG.transition = false; DG.pending = null;
@@ -402,7 +411,7 @@ async function seqCleared() {
     return;
   }
   if (loc.id === "TOURNOI" || loc.id === "ARENE") {
-    const prize = loc.id === "TOURNOI" ? 300 : (120 + hero().lv * 5) * clamp(G.story.arenaN || 1, 1, 3);
+    const prize = (loc.id === "TOURNOI" ? 300 : (120 + hero().lv * 5) * clamp(G.story.arenaN || 1, 1, 3)) * (loc.id === "ARENE" && G.story.arenaBoom ? 2 : 1);
     if (loc.id === "ARENE") await runDialog([{ who: "presenter", text: "Victoire de l’équipe de {name} ! La foule est en délire !" }]);
     endRun();
     G.money = (G.money || 0) + prize; G.shards = (G.shards || 0) + (loc.id === "TOURNOI" ? 5 : 1);

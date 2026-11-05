@@ -460,8 +460,10 @@ function drawEyes(ctx, e, ex, r, t, seed, o) {
   const blink = !o.still && ((t + (seed % 100) / 37) % 3.4) < 0.12;
   const od = o.dir || [0, 1];
   const px = Math.abs(od[0]) * e.size * 0.3, py = Math.max(0, od[1]) * e.size * 0.2;
+  const E = o.emo;
   for (const sx of [-1, 1]) {
     const x = ex + sx * e.gap, y = e.y;
+    if (E && E !== "Normal" && !o.sleep && !o.ko && drawEmotionEye(ctx, E, x, y, e.size, sx, r)) continue;
     if (o.sleep || blink || o.ko) {
       ctx.strokeStyle = "#1a1420"; ctx.lineWidth = Math.max(1, r * 0.08);
       ctx.beginPath(); ctx.moveTo(x - e.size, y); ctx.quadraticCurveTo(x, y + e.size * 0.6, x + e.size, y); ctx.stroke();
@@ -490,7 +492,30 @@ function drawEyes(ctx, e, ex, r, t, seed, o) {
       ctx.beginPath(); ctx.moveTo(x - e.size * 1.2, y - e.size * (sx > 0 ? 1.6 : 1.1)); ctx.lineTo(x + e.size * 1.2, y - e.size * (sx > 0 ? 1.1 : 1.6)); ctx.stroke();
     }
     if (e.style === "half") { ctx.fillStyle = "rgba(40,20,60,0.55)"; ctx.fillRect(x - e.size, y - e.size * 1.05, e.size * 2, e.size * 0.75); }
+    if (o.shadow) { ctx.fillStyle = "rgba(255,40,60,0.85)"; ctx.beginPath(); ctx.ellipse(x + px, y + py, e.size * 0.5, e.size * 0.6, 0, 0, 7); ctx.fill(); }
   }
+}
+// expressions des portraits dessinés par le jeu (émotions de sprite_config.json)
+function drawEmotionEye(ctx, E, x, y, s, sx, r) {
+  const ink = "#1a1420"; ctx.lineCap = "round";
+  const lw = Math.max(1, r * 0.08);
+  const brow = (inner, outer) => { ctx.strokeStyle = "#2a1e14"; ctx.lineWidth = Math.max(1, r * 0.08); ctx.beginPath(); ctx.moveTo(x - sx * s * 1.1, y - s * (1.3 + inner)); ctx.lineTo(x + sx * s * 1.1, y - s * (1.3 + outer)); ctx.stroke(); };
+  const base = (pScale) => { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(x, y, s, s, 0, 0, 7); ctx.fill(); ctx.fillStyle = ink; ctx.beginPath(); ctx.ellipse(x, y + s * 0.1, s * 0.62 * pScale, s * 0.72 * pScale, 0, 0, 7); ctx.fill(); ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x - s * 0.2, y - s * 0.2, s * 0.2, 0, 7); ctx.fill(); };
+  const tear = () => { ctx.fillStyle = "#7ad0ff"; ctx.beginPath(); ctx.moveTo(x + sx * s * 0.6, y + s * 0.6); ctx.quadraticCurveTo(x + sx * s * 0.95, y + s * 1.25, x + sx * s * 0.6, y + s * 1.35); ctx.quadraticCurveTo(x + sx * s * 0.25, y + s * 1.25, x + sx * s * 0.6, y + s * 0.6); ctx.fill(); };
+  switch (E) {
+    case "Happy": case "Joyous": ctx.strokeStyle = ink; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.moveTo(x - s, y + s * 0.3); ctx.quadraticCurveTo(x, y - s * 0.9, x + s, y + s * 0.3); ctx.stroke(); if (E === "Joyous") { ctx.fillStyle = "rgba(255,120,140,0.5)"; ctx.beginPath(); ctx.arc(x + sx * s * 0.6, y + s * 1.2, s * 0.45, 0, 7); ctx.fill(); } return true;
+    case "Inspired": base(0.9); ctx.fillStyle = "#ffe680"; star(ctx, x + s * 0.15, y - s * 0.1, s * 0.45); return true;
+    case "Sad": case "Worried": base(0.85); brow(0.45, -0.1); return true;
+    case "Teary-Eyed": base(0.9); brow(0.4, -0.1); ctx.fillStyle = "rgba(140,210,255,0.55)"; ctx.beginPath(); ctx.ellipse(x, y + s * 0.55, s * 0.85, s * 0.35, 0, 0, 7); ctx.fill(); tear(); return true;
+    case "Crying": ctx.strokeStyle = ink; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.moveTo(x - s, y - s * 0.1); ctx.quadraticCurveTo(x, y + s * 0.6, x + s, y - s * 0.1); ctx.stroke(); brow(0.45, -0.1); tear(); ctx.fillStyle = "#7ad0ff"; ctx.fillRect(x + sx * s * 0.5, y + s * 0.4, s * 0.25, s * 1.6); return true;
+    case "Angry": case "Shouting": base(E === "Shouting" ? 0.55 : 0.75); brow(-0.35, 0.25); return true;
+    case "Determined": base(0.8); brow(-0.2, 0.1); ctx.fillStyle = "rgba(40,20,60,0.5)"; ctx.fillRect(x - s, y - s * 1.05, s * 2, s * 0.55); return true;
+    case "Surprised": case "Stunned": ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(x, y, s * 1.1, s * 1.2, 0, 0, 7); ctx.fill(); ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x, y, s * (E === "Stunned" ? 0.18 : 0.3), 0, 7); ctx.fill(); brow(0.55, 0.55); return true;
+    case "Pain": ctx.strokeStyle = ink; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.moveTo(x - sx * s * 0.8, y - s * 0.6); ctx.lineTo(x + sx * s * 0.6, y); ctx.lineTo(x - sx * s * 0.8, y + s * 0.6); ctx.stroke(); return true;
+    case "Dizzy": ctx.strokeStyle = ink; ctx.lineWidth = lw; ctx.beginPath(); for (let a = 0; a < 12; a += 0.4) ctx.lineTo(x + Math.cos(a) * s * a / 12, y + Math.sin(a) * s * a / 12); ctx.stroke(); return true;
+    case "Sigh": ctx.strokeStyle = ink; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.moveTo(x - s, y + s * 0.1); ctx.lineTo(x + s, y + s * 0.1); ctx.stroke(); return true;
+  }
+  return false;
 }
 
 // ------------------------------------------------------------
@@ -543,6 +568,7 @@ function flashCanvas(w, h) {
 // Dessine une créature (sprite importé si présent, sinon art procédural)
 function drawCreature(ctx, mid, cx, feetY, s, o) {
   o = o || {};
+  if (o.shadow) drawShadowAura(ctx, cx, feetY, s, o.t || 0);
   const spr = SPRITES[mid];
   if (spr) {
     let anim = o.anim || (o.moving ? "Walk" : "Idle");
@@ -552,6 +578,15 @@ function drawCreature(ctx, mid, cx, feetY, s, o) {
   const cim = !MEDIA.noCustom && mediaImg("mon." + mid);
   if (cim) { drawCustomCreature(ctx, cim, cx, feetY, s, o); return; }
   drawMonster(ctx, monById(mid), cx, feetY, s, o);
+}
+// aura des créatures possédées par l'Ombre
+function drawShadowAura(ctx, cx, feetY, s, t) {
+  const cy = feetY - s * 0.35;
+  const g = ctx.createRadialGradient(cx, cy, s * 0.05, cx, cy, s * 0.62);
+  g.addColorStop(0, "rgba(70,20,110,0.55)"); g.addColorStop(0.6, "rgba(40,8,70,0.35)"); g.addColorStop(1, "rgba(20,0,40,0)");
+  ctx.save(); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(cx, cy, s * 0.62, s * 0.55, 0, 0, 7); ctx.fill();
+  for (let i = 0; i < 4; i++) { const k = ((t / 1400) + i * 0.25) % 1; ctx.fillStyle = "rgba(60,10,90," + (0.7 * (1 - k)) + ")"; ctx.beginPath(); ctx.arc(cx + Math.sin(i * 2.1 + t / 600) * s * 0.3, feetY - s * (0.1 + k * 0.8), s * 0.05 * (1 - k * 0.5), 0, 7); ctx.fill(); }
+  ctx.restore();
 }
 // créature en image fixe (dessinée tournée vers la droite)
 function drawCustomCreature(ctx, im, cx, feetY, s, o) {
@@ -587,14 +622,20 @@ function paintPortrait(canvas, mid, opts) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cw, ch);
   const spr = SPRITES[mid];
-  if (spr && spr.portrait && spr.portrait.complete && spr.portrait.naturalWidth && !opts.body) {
+  const emo = opts.emotion || "Normal";
+  // 1) portrait d'émotion importé (Happy.png, Crying.png…) · 2) planche de portraits (sprite_config.json)
+  const ei = !MEDIA.noCustom && opts.emotion && mediaImg("emo." + mid + "." + emo);
+  if (ei && !opts.body) { ctx.imageSmoothingEnabled = false; ctx.drawImage(ei, 0, 0, cw, ch); return; }
+  const sheet = (!MEDIA.noCustom && mediaImg("psheet." + mid)) || (spr && spr.portrait && spr.portrait.complete && spr.portrait.naturalWidth ? spr.portrait : null);
+  if (sheet && !opts.body) {
     ctx.imageSmoothingEnabled = false;
-    const p = spr.portrait; const side = Math.min(p.naturalWidth, 40);
-    ctx.drawImage(p, 0, 0, side, side, 0, 0, cw, ch);
+    const W = sheet.naturalWidth || sheet.width, H = sheet.naturalHeight || sheet.height;
+    if (W >= SPRITE_CONFIG.portrait_size * 2) { const tl = emotionTile(emo, W, H); ctx.drawImage(sheet, tl.x, tl.y, tl.sz, tl.sz, 0, 0, cw, ch); }
+    else { const side = Math.min(W, H); ctx.drawImage(sheet, 0, 0, side, side, 0, 0, cw, ch); }
     return;
   }
   const s = Math.min(cw, ch) * 1.25;
-  drawCreature(ctx, mid, cw / 2, ch * 0.9, s, { t: opts.t || 0, dir: opts.dir || [0, 1], still: opts.still, moving: false });
+  drawCreature(ctx, mid, cw / 2, ch * 0.9, s, { t: opts.t || 0, dir: opts.dir || [0, 1], still: opts.still, moving: false, emo: opts.emotion || null });
 }
 
 // ------------------------------------------------------------

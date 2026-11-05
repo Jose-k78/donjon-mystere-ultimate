@@ -26,7 +26,7 @@ function sanitizeSave(g) {
     if (g.run && !LOC[g.run.loc] && !SPECIAL_LOCS[g.run.loc]) g.run = null;
     if (g.run) for (const e of g.run.enemies) { if (!MON[e.mid]) e.mid = DATA.monsters[0].id; e.st = e.st || {}; e.pp = e.pp || {}; }
     if (g.run && g.run.tour) for (const t of g.run.tour.teams || []) for (const e of t.members || []) { if (!MON[e.mid]) e.mid = DATA.monsters[0].id; e.st = e.st || {}; e.pp = e.pp || {}; }
-    g.team = g.team.filter(Boolean).slice(0, 3);
+    { const main = g.team.filter(u => u && !u.guest).slice(0, 3); const guests = g.run ? g.team.filter(u => u && u.guest && MON[u.mid]).slice(0, 1) : []; g.team = main.concat(guests); }
     if (g.team[2]) g.team[2].kind = "ally";
     g.reserve = Array.isArray(g.reserve) ? g.reserve.filter(u => u && MON[u.mid]) : [];
     for (const u of g.reserve) { u.st = u.st || {}; u.pp = u.pp || {}; u.kind = "ally"; }
@@ -34,6 +34,10 @@ function sanitizeSave(g) {
     g.day = g.day || 1;
     for (const u of g.team.concat(g.reserve)) { u.bag = Array.isArray(u.bag) ? u.bag.filter(id => ITEMS[id]) : []; if (u.equip && !ITEMS[u.equip]) u.equip = null; if (u.moves) u.moves = u.moves.filter(id => ATK[id]); }
     if (g.unknown && typeof g.unknown === "object") SPECIAL_LOCS.INCONNU = g.unknown;
+    g.mg = g.mg && typeof g.mg === "object" ? g.mg : {}; g.fish = g.fish && typeof g.fish === "object" ? g.fish : {}; g.trophies = g.trophies && typeof g.trophies === "object" ? g.trophies : {}; g.tickets = g.tickets || 0;
+    if (g.story.c3) { g.story.c3.oaths = (g.story.c3.oaths || []).filter(id => GUILD_ARCS[id]); }
+    if (g.story.bonds) for (const k in g.story.bonds) g.story.bonds[k] = clamp(+g.story.bonds[k] || 0, 0, 100);
+    if (g.story.ultimate && !ATK[g.story.ultimate]) g.story.ultimate = null;
     return g;
   } catch (e) { return null; }
 }

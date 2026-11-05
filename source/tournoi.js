@@ -4,7 +4,7 @@
 // ============================================================
 function tourTeam(fac) { return R && R.tour ? R.tour.teams.find(t => t.fac === fac) : null; }
 function tourMids(n, exclude) {
-  const pool = DATA.monsters.filter(m => (m.rarity || 1) < 3).map(m => m.id).filter(id => !exclude.includes(id));
+  const pool = DATA.monsters.filter(m => (m.rarity || 1) < 3 && !m.story).map(m => m.id).filter(id => !exclude.includes(id));
   const out = [];
   while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
   while (out.length < n) out.push(DATA.monsters[out.length % DATA.monsters.length].id);

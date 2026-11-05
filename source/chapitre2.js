@@ -96,7 +96,7 @@ const EXTRA_BG = {
 };
 // Le public : de vraies créatures tirées au hasard (pré-dessinées pour rester fluide)
 const CROWD_CACHE = {};
-function crowdMids() { if (!SC.crowd || !SC.crowd.length) { const ids = DATA.monsters.filter(m => (m.rarity || 1) < 3).map(m => m.id); SC.crowd = ids.sort(() => rnd() - 0.5); } return SC.crowd; }
+function crowdMids() { if (!SC.crowd || !SC.crowd.length) { const ids = DATA.monsters.filter(m => (m.rarity || 1) < 3 && !m.story).map(m => m.id); SC.crowd = ids.sort(() => rnd() - 0.5); } return SC.crowd; }
 function drawCrowd(ctx, w, baseY, size, now, n, alpha) {
   const mids = crowdMids();
   const key = Math.round(w) + "|" + Math.round(baseY) + "|" + Math.round(size) + "|" + n + "|" + mids.slice(0, 3).join("");

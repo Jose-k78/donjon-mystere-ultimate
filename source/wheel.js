@@ -16,6 +16,7 @@ function wheelOptions() {
   if (it) o.push({ k: "pick", label: "Ramasser", sub: it.id === "or" ? (it.amount || 0) + " p." : ITEMS[it.id].name, col: "#7ce3ff", fn: () => dungeonAct(() => pickUpHere()) });
   if (heroOnStairs()) o.push({ k: "stairs", label: "Escalier", sub: "Descendre", col: "#ffd166", fn: () => askStairs() });
   o.push({ k: "team", label: "Équipe", sub: G.team.length + " membres", col: "#7adcff", fn: openTeam });
+  if (typeof canCallOath === "function" && canCallOath()) o.push({ k: "oath", label: "Serment", sub: "Appeler", col: "#ffd166", fn: openOathCall });
   o.push({ k: "wait", label: "Attendre", sub: "1 tour", col: "#b8c0d0", fn: () => dungeonAct(() => true) });
   o.push({ k: "menu", label: "Menu", sub: "Plus…", col: "#d6c6ff", fn: openHeroMenu });
   return o;

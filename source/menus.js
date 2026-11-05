@@ -85,7 +85,7 @@ function refreshTitle() {
   const foot = $("#titleFoot");
   if (G) {
     const h = hero();
-    foot.textContent = unitName(h) + " · Niv. " + h.lv + (G.story.ch1Done ? " · Chapitre 1 terminé" : " · Chapitre 1");
+    foot.textContent = unitName(h) + " · Niv. " + h.lv + " · " + (typeof storyChapterLabel === "function" ? storyChapterLabel() : "Chapitre 1");
   } else foot.textContent = "Fan game · fait par José";
 }
 function continueGame() {
@@ -115,6 +115,8 @@ function openSettings() {
   add(OPTS.music === false ? "Musique : coupée" : "Musique : activée", () => { OPTS.music = OPTS.music === false; saveOpts(); MUSIC.key = null; refreshMusic(); openSettings(); });
   add(OPTS.fastText ? "Texte : rapide" : "Texte : normal", () => { OPTS.fastText = !OPTS.fastText; saveOpts(); openSettings(); });
   add("Atelier", () => { closeSheet(); $("#atlBack").dataset.back = SCREEN === "hub" ? "hub" : "title"; openAtelier(); });
+  add("Sauvegarde (user_save.json)", () => { closeSheet(); openSaveSheet(); });
+  if (G && G.story.ch1Done) add("Trophées", () => { closeSheet(); openTrophies(); });
   if (G) add("Effacer la sauvegarde", confirmErase, "danger");
   body.append(grid);
   body.append(el("p", "sheet-note", "Donjon Mystère Ultimate est un fan game fait par moi et pour moi — José. Toutes les créatures, les décors et l’histoire sont originaux."));
@@ -182,8 +184,19 @@ function hubAction(k) {
     const b2 = el("button", "btn small " + (G.story.ch2Done ? "" : "primary"), G.story.ch2Done ? "Aller au Royaume" : st === "ch1_done" || st === "ch2_intro" ? "Commencer" : "Continuer"); b2.type = "button";
     b2.onclick = () => { closeSheet(); if (st === "ch1_done" || st === "ch2_intro") playChapter2Intro(); else goRoyaume(); };
     c2.append(b2);
-    const c3 = el("div", "chap locked"); c3.append(el("b", null, "Chapitre 3"), el("small", null, "Bientôt"));
-    body.append(c1, c2, c3);
+    body.append(c1, c2);
+    if (G.story.ch2Done) {
+      const s = st3(), nx = storyNext();
+      const rows = [[CH3.title, s.c3.end, s.c3.on], [CH4.title, s.c4.step >= 5, s.c4.on], [CH5.title, s.c5.done, s.c5.on], [EPI.title, s.epi.done, s.c5.done]];
+      rows.forEach(([t, done, on], i) => {
+        const c = el("div", "chap" + (done ? " done" : on || (i === 0) ? "" : " locked"));
+        const sub = done ? "Terminé" : on ? "En cours · " + (nx ? fillTpl(nx.obj) : "") : i === 0 || rows[i - 1][1] ? "Nouveau ! " + (nx ? fillTpl(nx.obj) : "") : "Plus tard";
+        c.append(el("b", null, t), el("small", null, sub));
+        if (!done && (on || i === 0 || rows[i - 1][1]) && nx) { const b = el("button", "btn small primary", "Continuer"); b.type = "button"; b.onclick = () => { closeSheet(); goRoyaume(); setTimeout(() => storyObjectiveTap(), 700); }; c.append(b); }
+        body.append(c);
+      });
+      if (s.c3.on) { const bb = el("div", "pause-grid"); const mk = (l, f) => { const b = el("button", "btn small", l); b.type = "button"; b.onclick = () => { closeSheet(); f(); }; bb.append(b); }; mk("Serments (" + s.c3.oaths.length + "/8)", () => { goRoyaume(); setTimeout(openGuildMissions, 600); }); mk("Liens", openBonds); mk("Trophées", openTrophies); body.append(bb); }
+    } else { const c3 = el("div", "chap locked"); c3.append(el("b", null, "Chapitre 3"), el("small", null, "Après le tournoi")); body.append(c3); }
     openSheet({ title: "Histoire", body, actions: [{ label: "Fermer", cls: "ghost" }] });
   } else if (k === "donjon") goMap();
   else if (k === "quetes" && G.story.ch2Done) { openQuestBoard(false); return; }
@@ -193,9 +206,8 @@ function hubAction(k) {
     body.append(el("p", "sheet-note", "Le tableau des missions de la guilde ouvrira au chapitre 2."));
     openSheet({ title: "Quêtes", body, actions: [{ label: "Fermer", cls: "ghost" }] });
   } else if (k === "invoc") {
-    const body = el("div", "result");
-    body.append(el("p", "sheet-text", "Tu as " + (G.shards || 0) + " Éclats d’étoile."), el("p", "sheet-text dim", "Les invocations arrivent bientôt : garde tes éclats, ils serviront à rencontrer de nouvelles créatures."));
-    openSheet({ title: "Invocations", body, actions: [{ label: "Fermer", cls: "ghost" }] });
+    if (!G.story.ch1Done) { openSheet({ title: "Invocations", body: el("p", "sheet-text", "Termine le chapitre 1 pour invoquer des créatures avec tes Éclats d’étoile."), actions: [{ label: "Fermer", cls: "ghost" }] }); return; }
+    openInvocations();
   } else if (k === "equipe") openTeam();
   else if (k === "royaume") goRoyaume();
   else if (k === "params") openSettings();

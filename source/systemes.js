@@ -10,7 +10,7 @@ function castMid(role) {
   const st = G.story; st.cast = st.cast || {};
   if (st.cast[role] && MON[st.cast[role]]) return st.cast[role];
   const used = new Set(Object.values(st.cast).concat(G.team.map(u => u.mid), G.thieves || []));
-  const pool = DATA.monsters.filter(m => (m.rarity || 1) < 3 && !used.has(m.id)).map(m => m.id);
+  const pool = DATA.monsters.filter(m => (m.rarity || 1) < 3 && !m.story && !used.has(m.id)).map(m => m.id);
   st.cast[role] = pool.length ? pick(pool) : pick(DATA.monsters).id;
   return st.cast[role];
 }
@@ -74,7 +74,17 @@ async function playRoom(mode) {
   }
   if (mode === "load") await runDialog([{ who: "thought", text: "Ta chambre à l’auberge. Jour " + today() + "." }]);
   for (;;) {
-    const ch = await runChoice(["Dormir jusqu’à demain", "Gérer l’équipe", "Sortir au village"], "Chambre · Jour " + today());
+    const talkOpts = G.story.ch2Done && typeof talkBond === "function" ? ["Parler à " + unitName(partner())].concat(typeof raskUnit === "function" && raskUnit() ? ["Parler à Rask"] : []) : [];
+    const ch0 = await runChoice(["Dormir jusqu’à demain", "Gérer l’équipe"].concat(talkOpts, ["Sortir au village"]), "Chambre · Jour " + today());
+    if (ch0 >= 2 && ch0 < 2 + talkOpts.length) {
+      const who = ch0 === 2 ? "partner" : "rask";
+      const u = who === "partner" ? partner() : raskUnit();
+      if (u && !SC.actors.c2) { actor("c2", u.mid, 0.66, 0.8, { dir: [-1, 0] }); hop("c2"); await wait(300); }
+      else if (u) { SC.actors.c2.mid = u.mid; hop("c2"); }
+      await talkBond(who, {});
+      continue;
+    }
+    const ch = ch0 >= 2 + talkOpts.length ? 2 : ch0;
     if (ch === 0) {
       SC.night = true; if (SC.actors.hero) SC.actors.hero.sleep = true;
       await wait(700);
@@ -100,7 +110,9 @@ function genQuests() {
   const tgt = pick(pool.length ? pool : [DATA.monsters[0].id]);
   list.push({ id: "q" + today() + "b", type: "defeat", loc: l1.id, target: tgt, title: "Chasse", desc: "Bats un " + monById(tgt).name + " dans " + l1.name + " (à partir de l’étage 2).", reward: { money: 120 + ri(0, 8) * 10, item: pick(["baie", "elixir", "orbelum"]) }, state: "offered" });
   const l2 = pick(locs.filter(l => (l.floors || 3) >= 3).concat(locs));
-  const lost = pick(DATA.monsters.filter(m => (m.rarity || 1) === 1)).id;
+  const lost = pick(DATA.monsters.filter(m => (m.rarity || 1) === 1 && !m.story)).id;
+  if (typeof hasOrder === "function" && G && hasOrder("victini")) { const lv = pick(locs); const pv = (lv.common_monsters || []).filter(id => MON[id] && !MON[id].story); const tv = pick(pv.length ? pv : [DATA.monsters[0].id]); list.push({ id: "q" + today() + "v", type: "defeat", loc: lv.id, target: tv, title: "Défi de Victini", desc: "Bats un " + monById(tv).name + " dans " + lv.name + ". Les guerriers de Victini paient double !", reward: { money: 300 + ri(0, 8) * 20, item: pick(["rubanrouge", "foulardpro", "orbefoudre"]) }, state: "offered" }); }
+  if (typeof hasOrder === "function" && G && hasOrder("lunala")) { const ll = pick(locs.filter(l => (l.difficulty || 1) >= 2).concat(locs)); const pl = (ll.common_monsters || []).filter(id => MON[id] && !MON[id].story); const tl = pick(pl.length ? pl : [DATA.monsters[0].id]); list.push({ id: "q" + today() + "l", type: "defeat", shadow: true, loc: ll.id, target: tl, title: "Contrat de l’Ombre", desc: "Infiltre " + ll.name + " et élimine un " + monById(tl).name + " possédé par l’Ombre (plus fort que la normale).", reward: { money: 500 + ri(0, 10) * 25, item: pick(["badgeroyal", "cristal", "baieor", "graine"]) }, state: "offered" }); }
   list.push({ id: "q" + today() + "c", type: "rescue", loc: l2.id, target: lost, title: "Sauvetage", desc: "Un " + monById(lost).name + " s’est perdu dans " + l2.name + ". Escorte-le jusqu’au dernier étage.", reward: { money: 180 + ri(0, 8) * 10, item: pick(["baieor", "graine", "rubanrouge", "foulardbleu", "badgeeclair", "rubanvital"]) }, state: "offered" });
   return { day: today(), list };
 }
@@ -200,8 +212,8 @@ async function freeModeEndRoll(forceR) {
   }
   const legendary = r >= 97;
   let mid;
-  if (legendary) { const L = DATA.monsters.filter(m => (m.rarity || 1) === 3); mid = (L.length ? pick(L) : DATA.monsters.slice().sort((a, b) => (b.hp + b.attack + b.defense + b.speed) - (a.hp + a.attack + a.defense + a.speed))[0]).id; }
-  else mid = pick(DATA.monsters.filter(m => (m.rarity || 1) < 3)).id;
+  if (legendary) { const L = DATA.monsters.filter(m => (m.rarity || 1) === 3 && !m.story); mid = (L.length ? pick(L) : DATA.monsters.slice().sort((a, b) => (b.hp + b.attack + b.defense + b.speed) - (a.hp + a.attack + a.defense + a.speed))[0]).id; }
+  else mid = pick(DATA.monsters.filter(m => (m.rarity || 1) < 3 && !m.story)).id;
   R.bonusBoss = { mid, lv: h.lv + (legendary ? 4 : 2), mul: legendary ? 3.2 : 2.9 };
   await runDialog([{ who: null, text: legendary ? "Le sol tremble… Une créature LÉGENDAIRE surgit des profondeurs !" : "Un grondement… Un gardien plus fort que les autres bloque la sortie !" }]);
   R.bossDefeated = false; R.floors = R.floor + 1;

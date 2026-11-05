@@ -26,6 +26,7 @@ function monById(id) { return MON[id] || DATA.monsters[0]; }
 function atkById(id) { return id === "_basic" ? BASIC_ATTACK : ATK[id]; }
 function locById(id) { return LOC[id] || SPECIAL_LOCS[id] || DATA.locations[0]; }
 function themeOf(locId) {
+  if (R && R.loc === locId && R.themeOf && THEMES[R.themeOf]) return THEMES[R.themeOf];
   if (THEMES[locId]) return THEMES[locId];
   if (SPECIAL_LOCS[locId]) return THEMES[SPECIAL_LOCS[locId].themeOf || "L03"];
   const l = LOC[locId];
@@ -60,12 +61,15 @@ function maxHP(u) {
   let v = Math.round((b.hp || 40) * (0.8 + u.lv * 0.08) * rarityOf(u.mid).mul) + 4 + equipBonus(u, "hp");
   if (u.boss) v = Math.round(v * (u.bossMul || 2.6));
   else if (u.kind === "enemy") v = Math.round(v * 0.85);
+  if (u.shadow) v = Math.round(v * 1.1);
   return v;
 }
 function statOf(u, k) {
   const b = monById(u.mid);
   let v = (b[k] || 15) * (0.8 + u.lv * 0.06) * rarityOf(u.mid).mul + equipBonus(u, k);
   if (u.boss) v *= 1.12;
+  if (u.shadow) v *= 1.08;
+  if (u.kind !== "enemy" && !u.guest && typeof hasOrder === "function" && hasOrder("amovenus") && G && G.team.filter(x => x && !x.guest).length >= 3) v *= 1.1;
   return v;
 }
 function xpNeed(lv) { return 30 + lv * 12; }
@@ -93,10 +97,13 @@ function teamAllies() { return G.team.slice(1).filter(u => u && !u.ko && u.hp > 
 function isAllyKind(u) { return u && (u.kind === "partner" || u.kind === "ally"); }
 function allUnits() { return activeTeam().concat(R ? R.enemies : []); }
 
-function baseForms() { return DATA.monsters.filter(m => (m.stage || 1) === 1); }
+function baseForms() { return DATA.monsters.filter(m => (m.stage || 1) === 1 && !m.story); }
 function pickThieves(exclude) {
   const pool = baseForms().map(m => m.id).filter(id => !exclude.includes(id));
   const out = [];
+  // les trois voyous du script : 010, 011, 012 (si disponibles)
+  for (const id of ["010", "011", "012"]) if (MON[id] && !exclude.includes(id) && out.length < 3) { out.push(id); const k = pool.indexOf(id); if (k >= 0) pool.splice(k, 1); }
+  if (out.length < 3) { out.length = 0; for (const id of ["010", "011", "012"]) if (MON[id] && !exclude.includes(id) && !pool.includes(id)) pool.push(id); }
   while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
   while (out.length < 3) out.push(DATA.monsters[0].id);
   return out;
@@ -119,7 +126,7 @@ function chapterOf() { return G && G.story && G.story.ch2Done ? 3 : G && G.story
 function isUnlocked(locId) {
   const req = UNLOCKS[locId];
   if (!req) return !!LOC[locId] && !!(G && G.story && G.story.ch1Done); // lieu ajouté dans l'Atelier
-  return req.every(r => r === "@ch2" ? chapterOf() >= 3 : (G.progress.cleared.includes(r) || !LOC[r]));
+  return req.every(r => r === "@ch2" ? chapterOf() >= 3 : String(r).startsWith("@order:") ? (typeof hasOrder === "function" && hasOrder(r.slice(7))) : (G.progress.cleared.includes(r) || !LOC[r]));
 }
 
 // ------------------------------------------------------------
@@ -151,7 +158,8 @@ function genFloor() {
   const loc = locById(R.loc);
   const th = themeOf(R.loc);
   const isBoss = R.floor >= R.floors;
-  const w = isBoss ? 24 : 40, h = isBoss ? 19 : 28;
+  const cp = !!loc.compact && !isBoss;
+  const w = isBoss ? 24 : cp ? 30 : 40, h = isBoss ? 19 : cp ? 21 : 28;
   R.w = w; R.h = h;
   R.grid = new Array(w * h).fill("#");
   R.roomAt = new Array(w * h).fill(-1);
@@ -281,6 +289,8 @@ function genFloor() {
     // ennemis
     let n = (typeof loc.level === "number" && loc.level <= 2) ? 3 + Math.floor(R.floor / 2) : 3 + (loc.difficulty || 1) + Math.floor(R.floor / 2);
     if (R.tour) n = 2 + Math.floor(R.floor / 3);
+    if (loc.compact) n = Math.min(n, 4 + Math.floor(R.floor / 25));
+    n = Math.min(n, 12);
     for (let k = 0; k < n; k++) spawnEnemy(true);
     if (R.tour) tourPopulateFloor(freeTileIn);
   } else {
@@ -346,17 +356,18 @@ function randomItem() {
 function enemyPool() {
   const loc = locById(R.loc);
   const pool = (loc.common_monsters || []).filter(id => MON[id]);
-  return pool.length ? pool : DATA.monsters.map(m => m.id);
+  return pool.length ? pool : DATA.monsters.filter(m => !m.story && (m.rarity || 1) < 3).map(m => m.id);
 }
 // le niveau des créatures suit celui du héros (dès la fin du chapitre 1)
 function enemyLevel() {
   const base = enemyLevelBase();
-  if (typeof R.lvBase === "number" || !G.story.ch1Done) return base;
+  if (typeof R.lvBase === "number" || typeof R.lvFlat === "number" || !G.story.ch1Done) return base;
   const scaled = hero().lv - 1 + Math.floor((R.floor - 1) * 0.5) + ri(-1, 1) + Math.max(0, (locById(R.loc).difficulty || 1) - 2);
   return Math.max(1, base, scaled);
 }
 function enemyLevelBase() {
   const loc = locById(R.loc);
+  if (typeof R.lvFlat === "number") return Math.max(1, R.lvFlat + Math.floor(R.floor / 10) + ri(-1, 1));
   if (typeof R.lvBase === "number") return Math.max(1, R.lvBase + Math.floor((R.floor - 1) * 0.4) + ri(-1, 0));
   if (typeof loc.level === "number") return Math.max(1, loc.level + Math.floor((R.floor - 1) * 0.7) + ri(0, 1));
   const base = [0, 2, 6, 10, 14, 18][clamp(loc.difficulty || 1, 1, 5)];
@@ -384,7 +395,8 @@ function spawnEnemy(initial) {
     if (R.stairs && R.stairs.x === x && R.stairs.y === y) continue;
     const qt = typeof questSpawnFor === "function" ? questSpawnFor() : null;
     const e = makeEnemy(qt ? qt.target : pickByRarity(enemyPool()), enemyLevel());
-    if (qt) { e.questTarget = qt.id; R.questSpawned = (R.questSpawned || 0) + 1; }
+    if (qt) { e.questTarget = qt.id; R.questSpawned = (R.questSpawned || 0) + 1; if (qt.shadow) { e.shadow = true; e.lv += 2; e.hp = maxHP(e); } }
+    else if (R.story && rnd() < (locById(R.loc).shadow || 0)) e.shadow = true;
     e.x = x; e.y = y; e.dir = pick(DIRS8);
     if (initial && rnd() < 0.3) e.st.sleep = 99;
     R.enemies.push(e);
@@ -732,7 +744,8 @@ function handleKO(t, killer) {
       const xp = Math.round((12 + t.lv * 5) * (t.boss ? 4 : t.fac ? 1.2 : 1) * rarityOf(t.mid).mul * 0.65);
       for (const m of activeTeam()) gainXP(m, xp);
     }
-    if (byTeam && !t.fac && !t.crew && !R.tour && G.story.ch1Done && !R.recruitOffer) {
+    if (R.siege) R.siege.kills++;
+    if (byTeam && !t.fac && !t.crew && !R.tour && G.story.ch1Done && !R.recruitOffer && !R.noRecruit && !monById(t.mid).story && !(R.story && t.boss)) {
       const m = monById(t.mid);
       let rate = typeof m.recruit_rate === "number" ? m.recruit_rate : rarityOf(t.mid).recruit;
       if (t.boss) rate *= 0.6;
@@ -1155,7 +1168,7 @@ function endTurn() {
   const h = hero();
   tickStatus(h);
   // faim
-  if (R.turn % 10 === 0 && R.belly > 0) {
+  if (R.turn % (locById(R.loc).hunger2 ? 5 : 10) === 0 && R.belly > 0) {
     R.belly--;
     if (R.belly === 20) msg({ t: "Ton ventre gargouille…", c: "bad" });
     if (R.belly === 0) msg({ t: "Tu meurs de faim ! Tu perds des PV à chaque pas.", c: "bad" });
@@ -1166,7 +1179,7 @@ function endTurn() {
   }
   // régénération lente
   const calm = !R.enemies.some(e => isVisible(e.x, e.y) && !e.dormant);
-  if (R.belly > 0 && R.turn % 4 === 0) for (const m of activeTeam()) m.hp = Math.min(maxHP(m), m.hp + 1); // 1 PV tous les 4 pas
+  if (R.belly > 0 && R.turn % (locById(R.loc).regen1 ? 1 : 4) === 0) for (const m of activeTeam()) m.hp = Math.min(maxHP(m), m.hp + 1); // 1 PV tous les 4 pas
   if (!R.gameOver) partnerAct();
   if (!R.gameOver) for (const e of R.enemies.slice()) {
     if (e.hp <= 0 || !R.enemies.includes(e)) continue;
@@ -1201,7 +1214,7 @@ function endTurn() {
   if (onTurnEnd) onTurnEnd();
 }
 
-function startRun(locId) {
+function startRun(locId, startFloor) {
   const loc = locById(locId);
   R = G.run = {
     loc: loc.id, floor: 1, floors: loc.id === "ARENE" ? 1 : Math.max(2, loc.floors || (3 + (loc.difficulty || 1))),
@@ -1212,17 +1225,23 @@ function startRun(locId) {
   G.stats.runs++;
   if (loc.id === "TOURNOI") initTournament();
   if (loc.id === "ARENE") initArena();
+  if (typeof storyRunInit === "function") storyRunInit();
+  if (startFloor > 1) R.floor = Math.min(startFloor, R.floors);
   resetVisuals();
+  if (typeof storyPreFloor === "function") storyPreFloor();
   genFloor();
   if (typeof questFloorHook === "function") questFloorHook();
+  if (typeof storyFloorSetup === "function") storyFloorSetup();
 }
 function nextFloor() {
   if (R.tour && !R.tour.arena) tourStash();
   R.floor++;
   for (const m of activeTeam()) { m.st = {}; }
   resetVisuals();
+  if (typeof storyPreFloor === "function") storyPreFloor();
   genFloor();
   if (typeof questFloorHook === "function") questFloorHook();
+  if (typeof storyFloorSetup === "function") storyFloorSetup();
 }
 function endRun() {
   G.team = G.team.filter(u => !u.guest);

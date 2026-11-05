@@ -74,7 +74,7 @@ function drawScene(now) {
     const s = S * a.sc * (0.75 + y * 0.35);
     ctx.save(); ctx.globalAlpha = a.alpha;
     if (a.shadowFigure) drawShadowFigure(ctx, x * w, y * h, s * 2.2, now);
-    else { drawShadow(ctx, x * w, y * h, s); drawCreature(ctx, a.mid, x * w, y * h + hy, s, { t: now + (hashStr(a.mid || "s") % 900), dir: a.dir, moving, sleep: a.sleep, still: a.sleep }); }
+    else { drawShadow(ctx, x * w, y * h, s); drawCreature(ctx, a.mid, x * w, y * h + hy, s, { t: now + (hashStr(a.mid || "s") % 900), dir: a.dir, moving, sleep: a.sleep, still: a.sleep, shadow: a.dark }); }
     ctx.restore();
     if (a.crown) drawCrown(ctx, x * w, y * h - s * 0.84 + hy, s * 0.3);
     if (a.badge) { const r = s * 0.13, bx = x * w, by = y * h - s * 0.92 + hy; ctx.fillStyle = a.badge.col; ctx.beginPath(); ctx.arc(bx, by, r, 0, 7); ctx.fill(); ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = "#fff"; ctx.font = `700 ${Math.round(r * 1.2)}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(a.badge.icon, bx, by + 1); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; }

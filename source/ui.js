@@ -16,7 +16,9 @@ function fillTpl(s) {
     .replace(/\{partnerSp\}/g, p ? sp(p.mid) : "?")
     .replace(/\{recruit\}/g, G && G.team[2] ? unitName(G.team[2]) : "notre nouvel ami")
     .replace(/\{recruitSp\}/g, G && G.team[2] ? sp(G.team[2].mid) : "?")
-    .replace(/\{chef\}/g, sp(th[0])).replace(/\{sbire1\}/g, sp(th[1])).replace(/\{sbire2\}/g, sp(th[2]));
+    .replace(/\{chef\}/g, sp(th[0])).replace(/\{sbire1\}/g, sp(th[1])).replace(/\{sbire2\}/g, sp(th[2]))
+    .replace(/\{NAME\}/g, ((G && G.heroName) || (h ? sp(h.mid) : "toi")).toUpperCase())
+    .replace(/\{atk\}/g, typeof ultimateName === "function" && G ? ultimateName() : "Lumière Originelle");
 }
 let SCREEN = "title";
 function showScreen(name) {
@@ -127,10 +129,11 @@ function speakerOf(who, ctx) {
     case "chef": return th[0] ? { mid: th[0], name: (MON[th[0]] || {}).name } : null;
     case "sbire1": return th[1] ? { mid: th[1], name: (MON[th[1]] || {}).name } : null;
     case "sbire2": return th[2] ? { mid: th[2], name: (MON[th[2]] || {}).name } : null;
-    case "boss": return ctx.bossMid ? { mid: ctx.bossMid, name: monById(ctx.bossMid).name } : null;
+    case "boss": return ctx.bossMid ? { mid: ctx.bossMid, name: ctx.bossName || monById(ctx.bossMid).name } : null;
     case "recruit": return G && G.team[2] ? { mid: G.team[2].mid, name: unitName(G.team[2]) } : (ctx.npcMid ? { mid: ctx.npcMid, name: ctx.npcName } : null);
     case "npc": return ctx.npcMid ? { mid: ctx.npcMid, name: ctx.npcName || monById(ctx.npcMid).name } : (ctx.npcName ? { name: ctx.npcName, badge: ctx.npcBadge || "#9aa" } : null);
   }
+  if (typeof STORY_CAST !== "undefined" && STORY_CAST[who] && G) { const c = STORY_CAST[who]; if (c.shadow) return { name: c.name, shadow: true, cls: "shadow" }; if (c.badge) return { name: c.name, badge: c.badge }; return { name: who === "rask" ? "Rask" : c.name, mid: castKeyMid(who) }; }
   if (typeof CH2_SPEAKERS !== "undefined" && CH2_SPEAKERS[who]) { const c = CH2_SPEAKERS[who]; if (c.shadow) return { name: c.name, shadow: true, cls: "shadow" }; return { name: c.name, mid: castMid(who) }; }
   return null;
 }
@@ -147,7 +150,7 @@ function runDialog(lines, ctx) {
       box.className = "dialog" + (sp && sp.cls ? " " + sp.cls : "") + (L.who ? "" : " narration");
       nameEl.textContent = sp ? sp.name : ""; nameEl.hidden = !(sp && sp.name);
       pc.hidden = !(sp && (sp.mid || sp.shadow || sp.badge));
-      if (sp && sp.mid) requestAnimationFrame(() => paintPortrait(pc, sp.mid, { still: true }));
+      if (sp && sp.mid) requestAnimationFrame(() => paintPortrait(pc, sp.mid, { still: true, emotion: L.emo || null }));
       else if (sp && sp.shadow) requestAnimationFrame(() => paintShadowPortrait(pc));
       else if (sp && sp.badge) requestAnimationFrame(() => paintBadgePortrait(pc, sp.badge, sp.name));
       full = fillTpl(L.text); textEl.textContent = "";

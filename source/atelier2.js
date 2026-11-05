@@ -353,6 +353,17 @@ async function importCreatureFiles(entries, onStatus) {
         if (one) { const r = await Store.saveMedia("mon." + mid, one, "img"); if (!r.error) { nImg++; imgNote = " · image"; } else imgNote = " · image refusée (" + r.error + ")"; }
       }
     } catch (e) { imgNote = " · image non lue (" + ((e && e.message) || e) + ")"; }
+    // portraits d'émotions (noms de sprite_config.json : Normal.png, Happy.png…) et planche de portraits
+    try {
+      let nEmo = 0;
+      for (const f of imgs) {
+        const base = f.name.replace(/\.[^.]+$/, "");
+        const emo = SPRITE_CONFIG.emotions.find(e2 => e2.toLowerCase() === base.toLowerCase());
+        if (emo) { const r = await Store.saveMedia("emo." + mid + "." + emo, f, "img"); if (!r.error) nEmo++; }
+        else if (/^(portraits?|portrait[_-]?sheet|planche)$/i.test(base) && !hasPMD) { const r = await Store.saveMedia("psheet." + mid, f, "img"); if (!r.error) nEmo++; }
+      }
+      if (nEmo) { nImg++; imgNote += " · " + nEmo + " portrait(s) d’émotion"; }
+    } catch (e) { }
     lines.push(String(+mid).padStart(4, "0") + " " + base.name + (i >= 0 ? " (mise à jour)" : " (nouvelle)") + imgNote);
   }
   if (!nNew && !nUpd) return { summary: "Aucune créature à importer : les dossiers sont vides (mets au moins un nom dans creature.json ou une image).", lines };

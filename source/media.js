@@ -57,6 +57,13 @@ function mediaSlots() {
   add("sons", "bgm.boss", "Combat de boss", "MP3, OGG, WAV ou M4A", "audio");
   add("sons", "bgm.fin", "Fin du chapitre", "MP3, OGG, WAV ou M4A", "audio");
   add("sons", "bgm.ombre", "La silhouette", "MP3, OGG, WAV ou M4A", "audio");
+  for (const [k, n] of [["bgm.chapitre3", "Scènes du chapitre 3"], ["bgm.chapitre4", "Scènes du chapitre 4"], ["bgm.chapitre5", "Scènes du chapitre 5"], ["bgm.epilogue", "Épilogue"]]) add("sons", k, n, "MP3, OGG, WAV ou M4A", "audio");
+  for (const [k, n] of [["bg.throne", "Salle du trône"], ["bg.council", "Salle du Conseil"], ["bg.guildhall", "Maison des Guildes"], ["bg.abyss", "Abysse des Tempêtes"], ["bg.crater", "Cratère des Champions"], ["bg.garden", "Jardin des Cœurs"], ["bg.glacier", "Glacier"], ["bg.clock", "Ruines du Temps"], ["bg.night", "Tour des Échos (nuit)"], ["bg.circus", "Cirque des Anneaux"], ["bg.sewer", "Bas-Fonds"], ["bg.library", "Archives Interdites"], ["bg.rift", "Cœur de la Faille"], ["bg.towerbase", "Pied de la Tour Céleste"], ["bg.towertop", "Sommet de la Tour Céleste"], ["bg.festival", "Fête des Serments"], ["bg.rooftop", "Toit de l’auberge"], ["bg.beachDawn", "Plage à l’aube"]]) add("decors", k, "Histoire : " + n, "1080 × 1920");
+  for (const id in STORY_MISSIONS) {
+    const n = STORY_MISSIONS[id].name;
+    add("sons", "bgm.donjon." + id, "Mission : " + n, "MP3, OGG, WAV ou M4A", "audio");
+    for (const [part, lab] of [["mur", "mur"], ["sol", "sol"], ["couloir", "couloir"], ["escalier", "escalier"]]) add("donjons", "tile." + id + "." + part, "Mission " + n + " : " + lab, "96 × 96");
+  }
   return S;
 }
 function slugName(n) { return String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, ""); }

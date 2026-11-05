@@ -3,9 +3,9 @@
 //  ruelles), créatures vagabondes à recruter
 // ============================================================
 const TOWN_W = 46, TOWN_H = 37;
-const TOWN_BUILDING_SKINS = [["palais", "Palais royal"], ["arene", "Arène"], ["auberge", "Auberge"], ["guildes", "Maison des Guildes"], ["maison", "Maison"]];
+const TOWN_BUILDING_SKINS = [["palais", "Palais royal"], ["arene", "Arène"], ["auberge", "Auberge"], ["guildes", "Maison des Guildes"], ["maison", "Maison"], ["jeux", "Salle des Jeux"]];
 const RM = { grid: null, bld: [], npcs: [], hero: null, party: [], trail: [], held: null, path: null, goal: null, T: 40, w: 0, h: 0, dpr: 1, cv: null, ctx: null, paused: false, camX: 0, camY: 0, place: "", gs: { id: null }, keys: new Set(), lastStep: 0 };
-const WALK = "gpdfGb";
+const WALK = "gpdfGbq";
 function tI(x, y) { return y * TOWN_W + x; }
 function tAt(x, y) { return x < 0 || y < 0 || x >= TOWN_W || y >= TOWN_H ? "x" : RM.grid[tI(x, y)]; }
 function buildTown() {
@@ -24,6 +24,8 @@ function buildTown() {
   rect(19, 22, 19, 34, "p"); rect(28, 22, 28, 34, "p"); // ruelles
   rect(13, 29, 19, 29, "p"); rect(28, 33, 34, 33, "p");
   rect(21, 16, 25, 18, "w"); set(23, 17, "b");          // fontaine (b = statue, bloquée plus bas)
+  rect(7, 8, 7, 9, "p");                                 // allée de la salle des jeux
+  rect(39, 32, 44, 35, "o"); rect(34, 33, 38, 33, "p"); set(38, 34, "p"); set(39, 33, "q"); set(40, 33, "q"); // étang et ponton
   // bâtiments
   RM.bld = [];
   const B = (key, x0, y0, x1, y1, door, kind, name) => { rect(x0, y0, x1, y1, "B"); if (door) set(door[0], door[1], "d"); RM.bld.push({ key, x0, y0, x1, y1, door, kind, name }); };
@@ -36,6 +38,7 @@ function buildTown() {
   B("maison", 29, 24, 32, 25, null, "house", "Maison");
   B("maison", 13, 31, 18, 34, [16, 31], "house", "Maison");
   B("maison", 25, 30, 27, 33, null, "house", "Maison");
+  B("jeux", 3, 2, 10, 7, [7, 7], "games", "Salle des Jeux");
   B("maison", 29, 28, 30, 31, null, "house", "Maison");
   // étals du marché
   RM.stalls = [];
@@ -59,7 +62,8 @@ function buildTown() {
   rect(22, TOWN_H - 1, 24, TOWN_H - 1, "G");
   set(19, 12, "n"); // tableau des quêtes
   RM.board = { x: 19, y: 12 };
-  RM.signs = [{ x: 15, y: 22, text: "↙ Auberge · ↓ Ruelles · ↘ Maison des Guildes" }, { x: 31, y: 14, text: "→ Arène du Royaume" }, { x: 14, y: 14, text: "← Marché : objets, orbes, capacités" }, { x: 25, y: 34, text: "↓ Sortie du Royaume" }];
+  RM.pond = { x0: 39, y0: 32, x1: 44, y1: 35 };
+  RM.signs = [{ x: 37, y: 32, text: "Étang du Royaume : pêche avec Papy Bulle" }, { x: 9, y: 9, text: "↑ Salle des Jeux : mini-jeux et lots" }, { x: 15, y: 22, text: "↙ Auberge · ↓ Ruelles · ↘ Maison des Guildes" }, { x: 31, y: 14, text: "→ Arène du Royaume" }, { x: 14, y: 14, text: "← Marché : objets, orbes, capacités" }, { x: 25, y: 34, text: "↓ Sortie du Royaume" }];
   for (const sg of RM.signs) set(sg.x, sg.y, "i");
   RM.grid = g;
 }
@@ -96,7 +100,7 @@ function townPath(sx, sy, tx, ty, self, adj) {
 }
 // ---- personnages ----
 function townMid(exclude) {
-  const pool = DATA.monsters.filter(m => (m.rarity || 1) < 3).map(m => m.id).filter(id => !exclude.includes(id));
+  const pool = DATA.monsters.filter(m => (m.rarity || 1) < 3 && !m.story).map(m => m.id).filter(id => !exclude.includes(id));
   return pool.length ? pick(pool) : DATA.monsters[0].id;
 }
 function ensureTownCast() {
@@ -111,7 +115,11 @@ function ensureTownCast() {
     const idx = VAGABONDS.map((_, i) => i).sort(() => rnd() - 0.5).slice(0, 6);
     st.vag = idx.map(i => { const m = townMid(used); used.push(m); return { i, nick: VAGABONDS[i].nick, mid: m, lv: Math.max(1, hero().lv + ri(-1, 1)), recruited: false }; });
   }
-  for (const v of st.vag) if (!MON[v.mid]) v.mid = townMid(ex);
+  // Rask (le troisième du script) attend toujours au marché
+  const rIdx = VAGABONDS.findIndex(v => v.fixedMid);
+  if (rIdx >= 0 && !st.vag.some(v => v.i === rIdx) && !st.raskJoined && !(typeof raskUnit === "function" && raskUnit())) st.vag.push({ i: rIdx, nick: VAGABONDS[rIdx].nick, mid: VAGABONDS[rIdx].fixedMid, lv: Math.max(1, hero().lv), recruited: false });
+  for (const v of st.vag) { if (VAGABONDS[v.i] && VAGABONDS[v.i].fixedMid && MON[VAGABONDS[v.i].fixedMid]) v.mid = VAGABONDS[v.i].fixedMid; if (!MON[v.mid]) v.mid = townMid(ex); }
+  if (st.raskJoined) st.vag = st.vag.filter(v => !(VAGABONDS[v.i] && VAGABONDS[v.i].fixedMid));
 }
 function makeNpc(o) { return Object.assign({ x: 0, y: 0, nx: null, ny: null, px: 0, py: 0, t0: 0, dur: 0, dir: [0, 1], path: [], wait: 1500 + rnd() * 4000, zone: null, gone: false }, o); }
 function spawnTownNpcs() {
@@ -132,7 +140,9 @@ function spawnTownNpcs() {
   put({ kind: "registrar", mid: M.registrar, name: "Préposée de l’Arène", dir: [-1, 0] }, 34, 15);
   const zones = [{ x0: 15, y0: 12, x1: 31, y1: 21 }, { x0: 2, y0: 10, x1: 14, y1: 22 }, { x0: 6, y0: 22, x1: 34, y1: 34 }, { x0: 21, y0: 21, x1: 25, y1: 34 }];
   M.folk.forEach((mid, i) => { const z = zones[i % zones.length]; const p = randomTownSpot(z); put({ kind: "folk", mid, name: "Habitant", li: i % TOWNFOLK_LINES.length, zone: z }, p[0], p[1]); });
-  G.story.vag.forEach((v, i) => { if (v.recruited) return; const z = zones[(i + 1) % zones.length]; const p = randomTownSpot(z); put({ kind: "vag", mid: v.mid, name: v.nick, vag: v, zone: z }, p[0], p[1]); });
+  put({ kind: "fisher", mid: castMid("fisher"), name: "Papy Bulle", dir: [1, 0] }, 38, 34);
+  if (typeof storyTownNpcs === "function") storyTownNpcs(put, zones);
+  G.story.vag.forEach((v, i) => { if (v.recruited) return; const z = VAGABONDS[v.i] && VAGABONDS[v.i].fixedMid ? zones[1] : zones[(i + 1) % zones.length]; const p = randomTownSpot(z); put({ kind: "vag", mid: v.mid, name: v.nick, vag: v, zone: z }, p[0], p[1]); });
   if (G.story.innFriend && MON[G.story.innFriend.mid]) put({ kind: "friend", mid: G.story.innFriend.mid, name: unitName(G.story.innFriend), unit: G.story.innFriend }, 11, 24);
 }
 function randomTownSpot(z) {
@@ -168,7 +178,8 @@ function townObjective() {
   if (s === "ch2_recruit") return G.team.length >= 3 ? CH2.objRegister : CH2.objRecruit;
   if (s === "ch2_register") return CH2.objRegister;
   if (s === "ch2_tournoi") return CH2.objTournoi;
-  return "";
+  const n = typeof storyNext === "function" ? storyNext() : null;
+  return n ? "★ " + fillTpl(n.obj) : "";
 }
 function layoutTown() {
   const cv = $("#rmCanvas"); if (!cv) return;
@@ -281,7 +292,8 @@ function renderTown(now) {
   const imG = mediaImg("town.herbe"), imP = mediaImg("town.pave"), imW = mediaImg("town.eau");
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     const c = tAt(x, y), px = x * T, py = y * T;
-    if (c === "w" || c === "b") { if (imW) ctx.drawImage(imW, px, py, T, T); else paintTownWater(ctx, px, py, T, now, x, y); continue; }
+    if (c === "w" || c === "b" || c === "o") { if (imW) ctx.drawImage(imW, px, py, T, T); else paintTownWater(ctx, px, py, T, now, x, y); continue; }
+    if (c === "q") { ctx.fillStyle = "#8a6038"; ctx.fillRect(px, py, T, T); ctx.fillStyle = "#6b4426"; for (let i = 1; i < 4; i++) ctx.fillRect(px, py + i * T / 4, T, 2); continue; }
     if ("pdGskni".includes(c) || c === "B") { if (imP) ctx.drawImage(imP, px, py, T, T); else paintTownPave(ctx, px, py, T, x, y); continue; }
     if (imG) ctx.drawImage(imG, px, py, T, T); else paintTownGrass(ctx, px, py, T, x, y, c === "f");
     if (c === "x") { ctx.fillStyle = "#6d6153"; ctx.fillRect(px, py, T, T); ctx.fillStyle = "#857865"; ctx.fillRect(px, py, T, T * 0.3); }
@@ -373,8 +385,8 @@ function drawBuilding(ctx, b, T, now) {
     for (let i = 0; i < 4; i++) { const fx = X + W * (0.2 + i * 0.2); ctx.fillStyle = "#4a3a2a"; ctx.fillRect(fx, Y - T * 0.2, 3, T * 0.9); ctx.fillStyle = GUILDS[i * 2].col; ctx.fillRect(fx + 3, Y - T * 0.2, T * 0.4, T * 0.28); }
   } else {
     const roofH = H * (b.kind === "palace" ? 0.5 : 0.55);
-    const wallCol = { palace: "#efe6d2", inn: "#c99a62", guild: "#bfb4a3", house: "#e2cfae" }[b.kind] || "#ddd";
-    const roofCol = { palace: "#3e64b8", inn: "#a2462f", guild: "#5a6b78", house: ["#c05a3c", "#557a4a", "#4c6aa0", "#9a5fa8", "#c08a2c", "#7a5a40"][(b.x0 + b.y0) % 6] }[b.kind];
+    const wallCol = { palace: "#efe6d2", inn: "#c99a62", guild: "#bfb4a3", house: "#e2cfae", games: "#f1d7f2" }[b.kind] || "#ddd";
+    const roofCol = { palace: "#3e64b8", inn: "#a2462f", guild: "#5a6b78", games: "#c0508a", house: ["#c05a3c", "#557a4a", "#4c6aa0", "#9a5fa8", "#c08a2c", "#7a5a40"][(b.x0 + b.y0) % 6] }[b.kind];
     ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.fillRect(X + T * 0.15, Y + H - T * 0.1, W, T * 0.25);
     ctx.fillStyle = wallCol; ctx.fillRect(X, Y + roofH * 0.8, W, H - roofH * 0.8);
     ctx.fillStyle = "rgba(0,0,0,0.08)"; ctx.fillRect(X, Y + H - T * 0.25, W, T * 0.25);
@@ -391,10 +403,10 @@ function drawBuilding(ctx, b, T, now) {
       ctx.fillStyle = b.kind === "palace" ? "#7a5520" : "#5a3a20"; ctx.fillRect(dx + T * 0.18, dy + T * 0.05, T * 0.64, T * 0.95);
       ctx.fillStyle = "#ffd94a"; ctx.beginPath(); ctx.arc(dx + T * 0.7, dy + T * 0.55, T * 0.05, 0, 7); ctx.fill();
     }
-    if (b.kind === "inn" || b.kind === "guild") {
+    if (b.kind === "inn" || b.kind === "guild" || b.kind === "games") {
       const sx = (b.door[0] + 1) * T, sy = Y + roofH + T * 0.1;
       ctx.fillStyle = "#6b4a2a"; ctx.fillRect(sx, sy, T * 1.9, T * 0.5); ctx.fillStyle = "#fff3d6"; ctx.font = `700 ${Math.round(T * 0.24)}px sans-serif`; ctx.textBaseline = "middle";
-      ctx.fillText(b.kind === "inn" ? "Auberge" : "Guildes", sx + T * 0.12, sy + T * 0.26); ctx.textBaseline = "alphabetic";
+      ctx.fillText(b.kind === "inn" ? "Auberge" : b.kind === "games" ? "Jeux" : "Guildes", sx + T * 0.12, sy + T * 0.26); ctx.textBaseline = "alphabetic";
     }
   }
 }
@@ -404,6 +416,8 @@ function drawNpcMark(ctx, n, fx, fy, T, now) {
   if (n.kind === "registrar" && ["ch2_register", "ch2_tournoi"].includes(G.story.step)) mark = "!";
   if (n.kind === "registrar" && G.story.step === "ch2_recruit" && G.team.length >= 3) mark = "!";
   if (n.kind === "friend") mark = "♥";
+  if (n.kind === "pal") mark = typeof pendingBondScene === "function" && pendingBondScene(n.pal) ? "♥" : null;
+  if (n.kind === "fisher") mark = typeof fishLeft === "function" && fishLeft() > 0 ? "~" : null;
   if (n.kind === "questguard" && G.story.ch2Done && questsToday().some(q => q.state === "offered" || q.state === "done")) mark = "!";
   if (n.kind === "vendor") mark = n.shop === "objets" ? "¤" : n.shop === "orbes" ? "◎" : "★";
   if (!mark) return;
@@ -453,9 +467,14 @@ async function talkTo(n) {
   else if (n.kind === "inn") { await townTalk([{ who: "npc", text: "Bienvenue à l’auberge ! Un bon lit, une soupe chaude… et on garde vos amis au chaud." }], c); openInn(); }
   else if (n.kind === "guard") await townTalk([{ who: "npc", text: pick(["Le Roi assiste au tournoi depuis le balcon du palais.", "Les capitaines de guilde ont leurs quartiers au palais pendant le tournoi.", "Circulez ! …Enfin, regardez les bannières si vous voulez. Chaque guilde a la sienne."]) }], c);
   else if (n.kind === "registrar") await arenaDesk(c);
-  else if (n.kind === "folk") { const pool = TOWNFOLK_LINES.concat(FOLK_EXTRA); await townTalk(pool[n.li % pool.length].map(t => ({ who: "npc", text: t })), c); n.li = (n.li + 1 + ri(0, 2)) % pool.length; }
+  else if (n.kind === "folk") { const pool = TOWNFOLK_LINES.concat(FOLK_EXTRA); await townTalk(pool[n.li % pool.length].map(t => ({ who: "npc", text: t })), c); n.li = (n.li + 1 + ri(0, 2)) % pool.length; if (typeof hasOrder === "function" && hasOrder("libre")) await folkRecruit(n); }
   else if (n.kind === "vag") await talkVagabond(n, c);
   else if (n.kind === "friend") await talkFriend(n, c);
+  else if (n.kind === "pal") { RM.paused = true; try { await talkPal(n); } finally { RM.paused = false; } }
+  else if (n.kind === "fisher") await talkFisher(n);
+  else if (n.kind === "thug") await townTalk(THUG_LINES[n.li % THUG_LINES.length].map(t => ({ who: "npc", text: t })), c);
+  else if (n.kind === "orion") await townTalk([{ who: "orion", text: pick(ORION_LINES) }]);
+  if (typeof checkTrophies === "function" && rnd() < 0.2) checkTrophies();
 }
 async function talkVagabond(n, c) {
   const V = VAGABONDS[n.vag.i] || VAGABONDS[0];
@@ -510,8 +529,12 @@ async function arenaDesk(c) {
   }
   if (G.story.ch2Done) {
     await townTalk([{ who: "registrar", text: "Bienvenue à l’Arène ! Un match pour la gloire… et quelques pièces ?" }]);
+    const boom = typeof hasOrder === "function" && hasOrder("victini");
     const opts = ["Match d’arène : 1 équipe", "Match d’arène : 2 équipes", "Match d’arène : 3 équipes", G.team.length >= 3 ? "Rejouer le tournoi (7 étages)" : "Tournoi : il faut 3 membres", "Plus tard"];
-    const ch = await runChoice(opts, "Plus il y a d’équipes, plus la récompense est grosse. Les équipes se battent aussi entre elles !");
+    if (boom) opts.splice(3, 0, "Arène explosive (Victini) : 3 équipes, gains ×2");
+    let ch = await runChoice(opts, "Plus il y a d’équipes, plus la récompense est grosse. Les équipes se battent aussi entre elles !");
+    G.story.arenaBoom = false;
+    if (boom && ch === 3) { G.story.arenaBoom = true; ch = 2; } else if (boom && ch > 3) ch--;
     if (ch <= 2) { G.story.arenaN = ch + 1; G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("ARENE"); }
     else if (ch === 3 && G.team.length >= 3) { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("TOURNOI"); }
     return;
@@ -520,20 +543,26 @@ async function arenaDesk(c) {
 }
 function enterBuilding(b) {
   if (b.kind === "arena") { const n = RM.npcs.find(x => x.kind === "registrar"); if (n) talkTo(n); else arenaDesk({}); }
-  else if (b.kind === "inn") openInn();
-  else if (b.kind === "guild") openGuildHall();
-  else if (b.kind === "palace") townTalk([{ who: "guard", text: "Halte ! Le palais est fermé pendant le tournoi. Le Roi regarde les combats depuis le balcon." }]);
+  else if (b.kind === "inn") { if (!(typeof storyBuilding === "function" && storyBuilding("inn"))) openInn(); }
+  else if (b.kind === "guild") { if (G.story.c3 && G.story.c3.on) openGuildMissions(); else if (!(typeof storyBuilding === "function" && storyBuilding("guild"))) openGuildHall(); }
+  else if (b.kind === "palace") { if (typeof storyBuilding === "function" && storyBuilding("palace")) { } else if (G.story.epi && G.story.epi.done) palaceFreeMode(); else townTalk([{ who: "guard", text: G.story.ch2Done ? "Le Roi est en audience. Revenez quand il vous fera appeler !" : "Halte ! Le palais est fermé pendant le tournoi. Le Roi regarde les combats depuis le balcon." }]); }
+  else if (b.kind === "games") openGamesHall();
+  else if (b.kind === "house" && b.door && b.door[0] === 16 && b.door[1] === 27 && typeof hasOrder === "function" && hasOrder("libre")) openQG();
   else toast(pick(["La porte est fermée.", "Personne ne répond.", "On entend quelqu’un ronfler à l’intérieur…"]), 1800);
   // recule d'un pas pour ne pas rester sur la porte
   setTimeout(() => { if (SCREEN === "royaume" && tAt(RM.hero.x, RM.hero.y) === "d") { const H = RM.hero; for (const d of [[0, 1], [0, -1], [1, 0], [-1, 0]]) if (townFree(H.x + d[0], H.y + d[1], RM.hero) && tAt(H.x + d[0], H.y + d[1]) !== "d") { H.px = H.x; H.py = H.y; H.x += d[0]; H.y += d[1]; H.t0 = performance.now(); H.dur = TSTEP; break; } } }, 60);
 }
 async function leaveTownGate() {
   if (G.story.ch2Done) {
-    openSheet({ title: "Porte du Royaume", body: el("p", "sheet-text", "Où veux-tu aller ?"), actions: [
+    const sn = typeof storyNext === "function" ? storyNext() : null;
+    const extra = [];
+    if (sn && sn.place === "gate") extra.push({ label: sn.mission ? "Tour Céleste (étage " + G.story.c5.ck + ")" : "Chapitre 5 : la Tour Céleste", cls: "primary", fn: () => { G.story.rmPos = { x: 23, y: 33 }; RM.paused = true; Promise.resolve(sn.fn()).finally(() => { RM.paused = false; }); } });
+    if (typeof hasOrder === "function" && hasOrder("hoopa")) extra.push({ label: "Anneau de Hoopa (au hasard)", fn: () => { G.story.rmPos = { x: 23, y: 33 }; hoopaRing(); } });
+    openSheet({ title: "Porte du Royaume", body: el("p", "sheet-text", "Où veux-tu aller ?"), actions: extra.concat([
       { label: "Carte du monde", cls: "primary", fn: () => { G.story.rmPos = { x: 23, y: 33 }; goMap(); } },
       { label: "Menu d’accueil", fn: () => { G.story.rmPos = { x: 23, y: 33 }; goHub(); } },
       { label: "Rester en ville", cls: "ghost", fn: townStepBack }
-    ] });
+    ]) });
   } else {
     await townTalk([{ who: "partner", text: "Hé, on ne part pas maintenant ! Le tournoi nous attend !" }]);
     townStepBack();
@@ -575,7 +604,9 @@ function openTownMenu() {
   const add = (label, fn, cls) => { const b = el("button", "btn small " + (cls || ""), label); b.type = "button"; b.onclick = () => { sfx("tap"); closeSheet(); fn(); }; body.append(b); };
   add("Équipe", openTeam);
   add("Sac", () => openBag(false));
-  add("Les guildes", openGuildHall);
+  if (G.story.ch2Done && typeof storyNext === "function") { const sn = storyNext(); if (sn) add("★ Objectif", storyObjectiveTap); }
+  add("Les guildes", () => (G.story.c3 && G.story.c3.on ? openGuildMissions() : openGuildHall()));
+  if (G.story.ch2Done) { add("Liens", openBonds); add("Trophées", openTrophies); add("Carnet de pêche", openFishBook); }
   if (G.story.ch2Done) { add("Carte du monde", () => { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; goMap(); }); add("Menu d’accueil", () => { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; goHub(); }); }
   add("Paramètres", openSettings);
   add("Sauvegarder", () => { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; Store.saveGame(G); toast("Partie sauvegardée."); });
@@ -611,6 +642,7 @@ function townTap(cx, cy) {
   if (tx === RM.board.x && ty === RM.board.y) { const fn = () => openQuestBoard(false); if (Math.max(Math.abs(tx - H.x), Math.abs(ty - H.y)) <= 1) fn(); else { RM.goal = { fn, x: tx, y: ty, adj: true }; RM.path = townPath(H.x, H.y, tx, ty, RM.hero, true); } return; }
   const sg = RM.signs.find(s => s.x === tx && s.y === ty);
   if (sg) { toast(sg.text, 2400); return; }
+  if (c === "o" || c === "q") { const f = RM.npcs.find(x => x.kind === "fisher"); if (f) { if (Math.max(Math.abs(f.x - H.x), Math.abs(f.y - H.y)) <= 1) talkTo(f); else { RM.goal = { npc: f, x: f.x, y: f.y, adj: true }; RM.path = townPath(H.x, H.y, f.x, f.y, RM.hero, true); } } return; }
   if (c === "w" || c === "b") { const fn = makeWish; const near = [[23, 15], [23, 19], [20, 17], [26, 17]].sort((a, b) => Math.hypot(a[0] - H.x, a[1] - H.y) - Math.hypot(b[0] - H.x, b[1] - H.y))[0]; if (Math.abs(H.x - 23) <= 3 && Math.abs(H.y - 17) <= 2) fn(); else { RM.goal = { fn, x: near[0], y: near[1], adj: false }; RM.path = townPath(H.x, H.y, near[0], near[1], RM.hero, false); } return; }
   const st = RM.stalls.find(s => s.y === ty && (s.x === tx || s.x + 1 === tx));
   if (st) { const si = RM.stalls.indexOf(st); const fn = () => openShop("buy", ["objets", "orbes", "skills"][si % 3]); if (Math.max(Math.abs(tx - H.x), Math.abs(ty - H.y)) <= 1) fn(); else { RM.goal = { fn, x: tx, y: ty, adj: true }; RM.path = townPath(H.x, H.y, tx, ty, RM.hero, true); } return; }
@@ -677,6 +709,7 @@ function setupRoyaume() {
   };
   cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
   $("#rmMenu").onclick = () => { sfx("tap"); openTownMenu(); };
+  $("#rmObj").onclick = () => { if (typeof storyObjectiveTap === "function") storyObjectiveTap(); };
   $("#rmBag").onclick = () => { sfx("tap"); openBag(false); };
   document.addEventListener("keydown", e => {
     if (SCREEN !== "royaume" || (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))) return;
