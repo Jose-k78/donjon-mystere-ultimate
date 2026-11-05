@@ -120,6 +120,7 @@ async function boot(hot) {
     for (const mid in sprites) loadSpriteDoc(sprites[mid]);
     refreshModoButtons();
     await loadAllMedia();
+    if (!Store.db && typeof syncBoot === "function") { try { await syncBoot(); } catch (e) { } }
     MUSIC.key = null; refreshMusic();
     if (SCREEN === "atelier") renderAtelier();
     if (SCREEN === "map") refreshMap();

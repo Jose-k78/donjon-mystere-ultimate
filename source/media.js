@@ -102,13 +102,15 @@ async function loadAllMedia() {
     }
   }
   applyCustomLogo();
+  if (typeof syncApplyMedia === "function" && typeof SYNC !== "undefined" && SYNC.status !== "off") await syncApplyMedia();
 }
 async function audioURLFor(key) {
   if (MEDIA.audioURL[key]) return MEDIA.audioURL[key];
   const d = MEDIA.idx[key]; if (!d || d.kind !== "audio") return null;
   let blob = null;
   try {
-    if (d.blob) blob = d.blob;
+    if (d.repo) blob = await syncAudioBlob(d);
+    else if (d.blob) blob = d.blob;
     else if (d.asset && d.b64) {
       const txt = await (await fetch(mediaURL(d))).text();
       const bin = atob(txt.trim()); const arr = new Uint8Array(bin.length);

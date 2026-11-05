@@ -40,7 +40,7 @@ function fitCanvas(cv, cap) {
 // ------------------------------------------------------------
 let AC = null;
 let OPTS = Object.assign({ sound: true, mini: true, fastText: false }, lsGet(LS_OPTS) || {});
-function saveOpts() { lsSet(LS_OPTS, OPTS); }
+function saveOpts() { lsSet(LS_OPTS, OPTS); if (typeof syncMarkDirty === "function") syncMarkDirty("opts"); }
 function unlockAudio() {
   if (AC || !OPTS.sound) return;
   try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; }

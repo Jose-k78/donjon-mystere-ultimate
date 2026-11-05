@@ -107,21 +107,7 @@ function startNew() {
     });
   } else go();
 }
-function openSettings() {
-  const body = el("div", "pause");
-  const grid = el("div", "pause-grid");
-  const add = (label, fn, cls) => { const b = el("button", "btn " + (cls || ""), label); b.type = "button"; b.onclick = () => { sfx("tap"); fn(); }; grid.append(b); };
-  add(OPTS.sound ? "Son : activé" : "Son : coupé", () => { OPTS.sound = !OPTS.sound; saveOpts(); if (OPTS.sound) unlockAudio(); openSettings(); });
-  add(OPTS.music === false ? "Musique : coupée" : "Musique : activée", () => { OPTS.music = OPTS.music === false; saveOpts(); MUSIC.key = null; refreshMusic(); openSettings(); });
-  add(OPTS.fastText ? "Texte : rapide" : "Texte : normal", () => { OPTS.fastText = !OPTS.fastText; saveOpts(); openSettings(); });
-  add("Atelier", () => { closeSheet(); $("#atlBack").dataset.back = SCREEN === "hub" ? "hub" : "title"; openAtelier(); });
-  add("Sauvegarde (user_save.json)", () => { closeSheet(); openSaveSheet(); });
-  if (G && G.story.ch1Done) add("Trophées", () => { closeSheet(); openTrophies(); });
-  if (G) add("Effacer la sauvegarde", confirmErase, "danger");
-  body.append(grid);
-  body.append(el("p", "sheet-note", "Donjon Mystère Ultimate est un fan game fait par moi et pour moi — José. Toutes les créatures, les décors et l’histoire sont originaux."));
-  openSheet({ title: "Paramètres", body, actions: [{ label: "Fermer", cls: "ghost" }] });
-}
+// Paramètres : voir parametres.js
 function confirmErase() {
   openSheet({
     title: "Effacer la sauvegarde ?", body: el("p", "sheet-text", "Ta progression sera perdue. Les modifications de l’Atelier sont gardées."), actions: [

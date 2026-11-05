@@ -327,7 +327,7 @@ async function importCreatureFiles(entries, onStatus) {
     if (!active || (js && js.actif === false && !imgs.length)) continue;
     const i = mods.monsters.findIndex(m => String(m.id) === mid);
     const base = i >= 0 ? JSON.parse(JSON.stringify(mods.monsters[i])) : { id: mid, name: "Créature #" + (+mid), types: ["Normal"], hp: 40, attack: 20, defense: 20, speed: 20, moves: ["A01"], description: "", form: "blob", stage: 1 };
-    if (js) {
+    if (js && (named || js.actif === true)) {
       if (named) base.name = js.name.trim().slice(0, 24);
       if (Array.isArray(js.types)) { const t = js.types.filter(x => TYPES.includes(x)).slice(0, 2); if (t.length) base.types = t; }
       for (const k of ["hp", "attack", "defense", "speed"]) if (typeof js[k] === "number" && js[k] > 0) base[k] = Math.round(js[k]);

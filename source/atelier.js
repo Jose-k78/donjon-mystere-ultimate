@@ -120,7 +120,7 @@ function editMonster(mid, isNew) {
   const pv = el("canvas", "atl-preview"); pv.id = "atlPreview";
   const side = el("div", "atl-sprite-side");
   side.append(el("h4", "fld-h", "Sprite"));
-  const status = el("p", "sheet-note", SPRITES[src.id] ? "Sprite PMD importé" + (SPRITES[src.id].doc && SPRITES[src.id].doc.where === "shared" ? " (partagé avec la page)." : " (sur cet appareil).") : "Dessin original généré par le jeu.");
+  const status = el("p", "sheet-note", SPRITES[src.id] ? (SPRITES[src.id].doc && SPRITES[src.id].doc.repo ? "Sprite PMD de ton dépôt GitHub." : "Sprite PMD importé" + (SPRITES[src.id].doc && SPRITES[src.id].doc.where === "shared" ? " (partagé avec la page)." : " (sur cet appareil).")) : "Dessin original généré par le jeu.");
   const file = el("input"); file.type = "file"; file.multiple = true; file.accept = ".xml,.png,.zip"; file.id = "fSprite"; file.className = "file-in";
   const fileBtn = el("label", "btn small"); fileBtn.htmlFor = "fSprite"; fileBtn.textContent = SPRITES[src.id] ? "Remplacer le sprite" : "Importer un sprite PMD";
   const rm = el("button", "btn small ghost", "Retirer le sprite"); rm.type = "button"; rm.hidden = !SPRITES[src.id];

@@ -326,54 +326,12 @@ function openTrophies() {
   openSheet({ title: "Trophées", body, actions: [{ label: "Fermer", cls: "ghost" }], tall: true });
 }
 
-// ---------- SAUVEGARDE user_save.json (fichier et dépôt GitHub) ----------
-const GH_KEY = "dmu-github";
-function ghConf() { return Object.assign({ repo: "Jose-k78/donjon-mystere-ultimate", token: "" }, lsGet(GH_KEY) || {}); }
+// ---------- SAUVEGARDE user_save.json (fichier) ----------
+// (l'ancien envoi vers le dépôt public a été retiré : tout passe par la synchro privée, voir sync.js)
 function saveJson() { return JSON.stringify(Object.assign({ format: "donjon-mystere-ultimate", exportedAt: new Date().toISOString() }, { save: G }), null, 1); }
-function openSaveSheet() {
-  const body = el("div", "result");
-  body.append(el("p", "sheet-text dim", "Ta sauvegarde (avec ton choix d’Ordre, tes liens et tes trophées) tient dans un fichier user_save.json."));
-  const row = el("div", "pause-grid");
-  const add = (label, fn, cls) => { const b = el("button", "btn small " + (cls || ""), label); b.type = "button"; b.onclick = () => { sfx("tap"); fn(); }; row.append(b); };
-  if (G) add("Télécharger user_save.json", () => downloadBlob("user_save.json", new Blob([saveJson()], { type: "application/json" })), "primary");
-  add("Importer un fichier", () => { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json"; inp.onchange = async () => { const f = inp.files && inp.files[0]; if (f) importSaveText(await f.text()); }; inp.click(); });
-  body.append(row);
-  body.append(el("h4", "fld-h", "Synchroniser avec GitHub"));
-  const c = ghConf();
-  const repo = el("input", "inp"); repo.value = c.repo; repo.placeholder = "compte/dépôt";
-  const tok = el("input", "inp"); tok.type = "password"; tok.value = c.token; tok.placeholder = "Jeton GitHub (contenu : lecture/écriture)"; tok.autocomplete = "off";
-  body.append(el("small", "sheet-note", "Dépôt"), repo, el("small", "sheet-note", "Jeton (gardé seulement sur cet appareil)"), tok);
-  const row2 = el("div", "pause-grid");
-  const add2 = (label, fn, cls) => { const b = el("button", "btn small " + (cls || ""), label); b.type = "button"; b.onclick = () => { sfx("tap"); lsSet(GH_KEY, { repo: repo.value.trim(), token: tok.value.trim() }); fn(); }; row2.append(b); };
-  if (G) add2("Envoyer sur GitHub", () => ghPushSave(), "primary");
-  add2("Récupérer depuis GitHub", () => ghPullSave());
-  body.append(row2);
-  body.append(el("p", "sheet-note", "Le jeton se crée sur github.com → Settings → Developer settings → Fine-grained tokens, limité au dépôt du jeu, avec « Contents : Read and write ». Sans jeton, tu peux quand même récupérer un user_save.json déjà présent dans un dépôt public."));
-  openSheet({ title: "Sauvegarde", body, actions: [{ label: "Fermer", cls: "ghost" }], tall: true });
-}
+function openSaveSheet() { openSettings("sauvegarde"); }
 function b64utf8(s) { return btoa(unescape(encodeURIComponent(s))); }
 function utf8b64(s) { return decodeURIComponent(escape(atob(String(s).replace(/\s/g, "")))); }
-async function ghPushSave() {
-  const c = ghConf(); if (!c.token) { toast("Ajoute d’abord ton jeton GitHub."); return; }
-  const url = "https://api.github.com/repos/" + c.repo + "/contents/user_save.json";
-  const hd = { Authorization: "Bearer " + c.token, Accept: "application/vnd.github+json" };
-  try {
-    let sha;
-    const g = await fetch(url, { headers: hd }); if (g.ok) sha = (await g.json()).sha;
-    const r = await fetch(url, { method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, hd), body: JSON.stringify({ message: "Sauvegarde du jeu (" + storyChapterLabel() + ", jour " + today() + ")", content: b64utf8(saveJson()), sha }) });
-    if (!r.ok) throw new Error("GitHub a répondu " + r.status);
-    toast("Sauvegarde envoyée sur GitHub !", 2600);
-  } catch (e) { toast("Envoi impossible : " + ((e && e.message) || e), 3600); }
-}
-async function ghPullSave() {
-  const c = ghConf();
-  const hd = { Accept: "application/vnd.github+json" }; if (c.token) hd.Authorization = "Bearer " + c.token;
-  try {
-    const r = await fetch("https://api.github.com/repos/" + c.repo + "/contents/user_save.json", { headers: hd });
-    if (!r.ok) throw new Error(r.status === 404 ? "pas de user_save.json dans le dépôt" : "GitHub a répondu " + r.status);
-    importSaveText(utf8b64((await r.json()).content));
-  } catch (e) { toast("Récupération impossible : " + ((e && e.message) || e), 3600); }
-}
 function importSaveText(txt) {
   let data; try { data = JSON.parse(txt); } catch (e) { toast("Fichier illisible."); return; }
   const s = sanitizeSave(data && data.save ? data.save : data);

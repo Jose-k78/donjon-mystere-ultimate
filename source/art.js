@@ -569,6 +569,7 @@ function flashCanvas(w, h) {
 function drawCreature(ctx, mid, cx, feetY, s, o) {
   o = o || {};
   if (o.shadow) drawShadowAura(ctx, cx, feetY, s, o.t || 0);
+  if (!SPRITES[mid] && SYNC.status !== "off") syncWantSprite(mid);
   const spr = SPRITES[mid];
   if (spr) {
     let anim = o.anim || (o.moving ? "Walk" : "Idle");
@@ -624,7 +625,9 @@ function paintPortrait(canvas, mid, opts) {
   const spr = SPRITES[mid];
   const emo = opts.emotion || "Normal";
   // 1) portrait d'émotion importé (Happy.png, Crying.png…) · 2) planche de portraits (sprite_config.json)
-  const ei = !MEDIA.noCustom && opts.emotion && mediaImg("emo." + mid + "." + emo);
+  if (!opts.body) SYNC.lastPortrait = [canvas, mid, opts];
+  if (!spr && SYNC.status !== "off") syncWantSprite(mid);
+  const ei = !MEDIA.noCustom && opts.emotion && (syncEmotion(mid, emo) || mediaImg("emo." + mid + "." + emo));
   if (ei && !opts.body) { ctx.imageSmoothingEnabled = false; ctx.drawImage(ei, 0, 0, cw, ch); return; }
   const sheet = (!MEDIA.noCustom && mediaImg("psheet." + mid)) || (spr && spr.portrait && spr.portrait.complete && spr.portrait.naturalWidth ? spr.portrait : null);
   if (sheet && !opts.body) {

@@ -77,6 +77,7 @@ const Store = {
     g.savedAt = Date.now();
     const json = JSON.stringify(g);
     lsSet(LS_SAVE, g);
+    if (typeof syncMarkDirty === "function") syncMarkDirty("save");
     const ref = this.saveRef();
     if (!ref) return;
     this.pending = json;
@@ -110,7 +111,9 @@ const Store = {
     return mods;
   },
   async saveMods(mods) {
+    if (typeof syncStripLayer === "function") mods = syncStripLayer(mods);
     lsSet(LS_MODS, mods);
+    if (typeof syncMarkDirty === "function") syncMarkDirty("mods");
     if (this.db && this.canEdit) {
       try { await this.db.doc("mods/data").set({ json: JSON.stringify(mods), at: Date.now() }); return "shared"; }
       catch (e) { return "local"; }
@@ -210,11 +213,13 @@ const Store = {
         return { where: "shared" };
       }
       const ok = await IDB.set("media:" + key, { kind, mime, blob });
+      if (ok !== null && typeof syncMediaChanged === "function") syncMediaChanged(key, blob, kind, file.name);
       return ok === null ? { error: "Impossible d’enregistrer sur cet appareil." } : { where: "local" };
     } catch (e) { return { error: "Envoi impossible : " + ((e && (e.message || e.code)) || e) }; }
   },
   async removeMedia(key) {
     await IDB.del("media:" + key);
+    if (typeof syncMediaRemoved === "function") syncMediaRemoved(key);
     if (this.canShareSprites()) {
       const idx = await this.readMediaDoc();
       const old = idx[key];
@@ -272,6 +277,8 @@ function mergeList(def, mod, removed) {
 function applyMods(mods) {
   MODS = mods || null;
   const base = JSON.parse(JSON.stringify(DEFAULT_DATA));
+  // créatures de ton dépôt GitHub (dossiers creatures/NNNN), sous les modifs de l'Atelier
+  if (typeof SYNC !== "undefined" && SYNC.layer.length) base.monsters = mergeList(base.monsters, SYNC.layer, []);
   if (mods) {
     const rm = mods.removed || {};
     for (const k of ["monsters", "attacks", "locations", "items"]) {
@@ -291,7 +298,8 @@ function withRemoved(mods) {
   for (const k of ["monsters", "attacks", "locations", "items"]) {
     if (k === "items" && !Array.isArray(mods.items)) { removed.items = []; continue; }
     const have = new Set((mods[k] || []).map(x => String(x.id)));
-    removed[k] = DEFAULT_DATA[k].map(x => String(x.id)).filter(id => !have.has(id) && !(k === "locations" && id === "L00"));
+    const known = DEFAULT_DATA[k].map(x => String(x.id)).concat(k === "monsters" && typeof SYNC !== "undefined" ? SYNC.layer.map(m => String(m.id)) : []);
+    removed[k] = [...new Set(known)].filter(id => !have.has(id) && !(k === "locations" && id === "L00"));
   }
   return Object.assign({}, mods, { removed });
 }
