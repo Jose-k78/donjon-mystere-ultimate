@@ -22,8 +22,10 @@ function storyLoc(id) {
   const L = SPECIAL_LOCS[id];
   L.common_monsters = (STORY_MISSIONS[id].common_monsters || []).filter(m => MON[m]);
   if (!L.common_monsters.length) L.common_monsters = storyMons();
+  L.boss = STORY_MISSIONS[id].boss; L.level = STORY_MISSIONS[id].level;
   if (L.bossRole) L.boss = castMid(L.bossRole);
   if (L.boss && !MON[L.boss]) L.boss = null;
+  if (typeof donjonApply === "function") donjonApply(L, "histoire");
   return L;
 }
 // ---------- personnages ----------

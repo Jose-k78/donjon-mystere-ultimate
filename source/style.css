@@ -578,7 +578,7 @@ ul.plain.small { font-size: 0.82rem; color: var(--dim); }
 .set-toggle.on { background: var(--moss); border-color: #b6ffbf; color: #102010; }
 .set-range { width: 140px; accent-color: var(--lantern); }
 .set-status { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--deep); }
-.set-status.ok { border-color: var(--moss); } .set-status.error { border-color: var(--coral); } .set-status.busy { border-color: var(--lantern); } .set-status.cache { border-color: #c39cff; }
+.set-status.ok { border-color: var(--moss); } .set-status.error { border-color: var(--coral); } .set-status.busy { border-color: var(--lantern); } .set-status.cache { border-color: #c39cff; } .set-status.warn { border-color: var(--lantern); }
 .set-status small { color: var(--dim); }
 .set-err { color: var(--coral) !important; }
 .set-help summary { cursor: pointer; color: var(--foam); padding: 6px 0; }

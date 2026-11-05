@@ -112,6 +112,7 @@ const Store = {
   },
   async saveMods(mods) {
     if (typeof syncStripLayer === "function") mods = syncStripLayer(mods);
+    if (typeof donjonsUnbake === "function") mods = donjonsUnbake(mods);
     lsSet(LS_MODS, mods);
     if (typeof syncMarkDirty === "function") syncMarkDirty("mods");
     if (this.db && this.canEdit) {
@@ -290,6 +291,7 @@ function applyMods(mods) {
   }
   DATA = base;
   indexData();
+  if (typeof donjonsApplyAll === "function") donjonsApplyAll();   // donjons.json (tes créatures par donjon)
   for (const k in TILESET_CACHE) delete TILESET_CACHE[k];
 }
 // Calcule ce qui a été retiré par rapport aux données d'origine

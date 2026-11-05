@@ -190,6 +190,11 @@ function genUnknown() {
   const pool = []; const all = DATA.monsters.map(m => m.id);
   while (pool.length < 6 && pool.length < all.length) { const id = pick(all); if (!pool.includes(id)) pool.push(id); }
   const loc = { id: "INCONNU", name: pick(UNK_A) + " " + pick(UNK_B), floors: ri(4, 8), difficulty: 3, themeOf: pick(keys), common_monsters: pool, boss: pick(pool.filter(id => (MON[id].rarity || 1) < 3).concat(pool)), unknown: true, description: "Un donjon qui change à chaque visite." };
+  if (typeof donjonApply === "function") {          // donjons.json : « INCONNU »
+    donjonApply(loc, "inconnu");
+    const o = DONJONS.map.INCONNU;
+    if (loc.spawn && !(o && o.boss && MON[o.boss])) loc.boss = pick(loc.common_monsters.filter(id => (MON[id].rarity || 1) < 3).concat(loc.common_monsters));
+  }
   G.unknown = loc; SPECIAL_LOCS.INCONNU = loc;
   return loc;
 }

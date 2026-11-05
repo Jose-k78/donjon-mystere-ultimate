@@ -138,7 +138,7 @@ async function syncFetchIndex() {
 }
 function syncMidOf(folder) { const m = /^(?:id)?0*(\d{1,4})$/i.exec(folder); return m && +m[1] >= 1 ? String(+m[1]).padStart(3, "0") : null; }
 function syncBuildMaps() {
-  SYNC.crea = new Map(); SYNC.media = new Map(); SYNC.partie = {};
+  SYNC.crea = new Map(); SYNC.media = new Map(); SYNC.partie = {}; SYNC.donjonsF = null;
   if (!SYNC.index) return;
   const slots = mediaSlots(), keys = new Set(slots.map(s => s.k));
   for (const [path, sha, size] of SYNC.index.files) {
@@ -153,6 +153,7 @@ function syncBuildMaps() {
       if (!key) continue;
       SYNC.media.set(key, { path, sha, size, name: base, kind: top === "sons" ? "audio" : "img" });
     } else if (top === "partie" && p.length === 2) SYNC.partie[p[1].toLowerCase()] = { path, sha, size };
+    else if (p.length === 1 && top === "donjons.json") SYNC.donjonsF = { path, sha, size };
   }
   for (const C of SYNC.crea.values()) {
     C.pmd = !!C.f["animdata.xml"];
@@ -456,13 +457,32 @@ async function syncResolveConflict(kind) {
     openSheet({ title: "Deux versions différentes", body, noDismiss: true, actions: acts });
   });
 }
+// ---------- donjons.json (créatures de chaque donjon) ----------
+async function syncLoadDonjons(fetchIt) {
+  if (typeof donjonsSetRepo !== "function") return false;
+  const F = SYNC.donjonsF, before = SYNC.donjonsSha || null;
+  if (!F) { SYNC.donjonsSha = null; SYNC.donjonsErr = ""; if (DONJONS.repo) { donjonsSetRepo(null); return true; } return false; }
+  if (F.sha === before && DONJONS.repo) return false;
+  let b, js;
+  try { b = await blobBySha(F.sha, "donjons.json", !fetchIt); } catch (e) { return false; }
+  if (!b) return false;
+  SYNC.donjonsSha = F.sha;
+  try { js = JSON.parse(await b.text()); }
+  catch (e) { SYNC.donjonsErr = "donjons.json est illisible" + donjonsWhere(e, await b.text()) + " : vérifie les virgules, les guillemets et les crochets. Le jeu garde la version d’avant."; return false; }
+  SYNC.donjonsErr = ""; SYNC.donjonsSha = F.sha; donjonsSetRepo(js);
+  return true;
+}
+function donjonsWhere(e, text) {
+  const m = /position (\d+)/.exec(String(e && e.message)); if (!m) { const l = /line (\d+)/.exec(String(e && e.message)); return l ? " (ligne " + l[1] + ")" : ""; }
+  return " (ligne " + (String(text).slice(0, +m[1]).split("\n").length) + ")";
+}
 // ---------- démarrage et synchro complète ----------
 async function syncBoot() {
   if (!syncOn()) { SYNC.status = "off"; return; }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
   // 1) tout de suite, avec ce qui est déjà sur l'appareil (marche hors ligne)
   const cached = await IDB.get("sync:index");
-  if (cached && cached.files) { SYNC.index = cached; syncBuildMaps(); SYNC.status = "cache"; await syncBuildLayer(false); applyMods(MODS); await syncApplyMedia(); }
+  if (cached && cached.files) { SYNC.index = cached; syncBuildMaps(); SYNC.status = "cache"; await syncBuildLayer(false); await syncLoadDonjons(false); applyMods(MODS); await syncApplyMedia(); }
   // 2) puis la version en ligne
   await syncNow(true);
 }
@@ -471,7 +491,9 @@ async function syncNow(boot, onProg) {
   syncSetStatus("busy", "Synchronisation…");
   try {
     const changed = await syncFetchIndex();
-    if (changed || !SYNC.layer.length || [...SYNC.crea.values()].some(C => C.json && C.js === undefined)) { await syncBuildLayer(true, onProg || ((n, t) => syncSetStatus("busy", "Lecture des créatures : " + n + "/" + t))); applyMods(MODS); }
+    let reapply = await syncLoadDonjons(true);
+    if (changed || !SYNC.layer.length || [...SYNC.crea.values()].some(C => C.json && C.js === undefined)) { await syncBuildLayer(true, onProg || ((n, t) => syncSetStatus("busy", "Lecture des créatures : " + n + "/" + t))); reapply = true; }
+    if (reapply) applyMods(MODS);
     SYNC.status = "ok";
     await syncApplyMedia();
     if (changed) { SYNC.failed.clear(); SYNC.done.clear(); for (const mid in SPRITES) if (SPRITES[mid].doc && SPRITES[mid].doc.repo) delete SPRITES[mid]; SYNC.emo = {}; }

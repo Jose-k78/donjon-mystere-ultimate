@@ -1,5 +1,5 @@
 // Service worker : le jeu marche hors ligne, et la version en ligne la plus récente est toujours prise en priorité.
-const VERSION = "20261105-2301";
+const VERSION = "20261105-2352";
 const CACHE = "dmu-" + VERSION;
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./version.json"];
 self.addEventListener("install", e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).catch(() => { })); });

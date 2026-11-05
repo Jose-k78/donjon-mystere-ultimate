@@ -1,7 +1,7 @@
 // ============================================================
 //  PARAMÈTRES (refonte) : Jeu · Synchro · Sprites · Sons · Sauvegarde · Atelier
 // ============================================================
-const SET_TABS = [["jeu", "Jeu"], ["synchro", "Synchro"], ["sprites", "Sprites"], ["sons", "Sons"], ["sauvegarde", "Sauvegarde"], ["atelier", "Atelier"]];
+const SET_TABS = [["jeu", "Jeu"], ["synchro", "Synchro"], ["sprites", "Sprites"], ["donjons", "Donjons"], ["sons", "Sons"], ["sauvegarde", "Sauvegarde"], ["atelier", "Atelier"]];
 const SETTINGS = { tab: "jeu", box: null, open: false };
 function openSettings(tab) {
   SETTINGS.tab = tab || SETTINGS.tab || "jeu";
@@ -18,7 +18,7 @@ function openSettings(tab) {
   openSheet({ title: "Paramètres", body, tall: true, actions: [{ label: "Fermer", cls: "ghost" }], onClose: () => { SETTINGS.open = false; } });
   renderSettingsTab();
 }
-function onSyncStatus() { if (SETTINGS.open && (SETTINGS.tab === "synchro" || SETTINGS.tab === "sprites")) renderSettingsTab(); }
+function onSyncStatus() { if (SETTINGS.open && (SETTINGS.tab === "synchro" || SETTINGS.tab === "sprites" || SETTINGS.tab === "donjons")) renderSettingsTab(); }
 function setRow(label, sub, ctrl) {
   const r = el("div", "set-row");
   const t = el("div", "set-tx"); t.append(el("b", null, label)); if (sub) t.append(el("small", null, sub));
@@ -33,7 +33,7 @@ function renderSettingsTab() {
   const box = SETTINGS.box; if (!box) return;
   const scroll = box.parentElement && box.parentElement.parentElement ? box.parentElement.parentElement.scrollTop : 0;
   box.replaceChildren();
-  ({ jeu: setTabJeu, synchro: setTabSync, sprites: setTabSprites, sons: setTabSons, sauvegarde: setTabSave, atelier: setTabAtelier }[SETTINGS.tab] || setTabJeu)(box);
+  ({ jeu: setTabJeu, synchro: setTabSync, sprites: setTabSprites, donjons: setTabDonjons, sons: setTabSons, sauvegarde: setTabSave, atelier: setTabAtelier }[SETTINGS.tab] || setTabJeu)(box);
   if (box.parentElement && box.parentElement.parentElement) box.parentElement.parentElement.scrollTop = scroll;
 }
 // ---------- Jeu ----------
@@ -122,6 +122,53 @@ function setTabSprites(box) {
   }
   box.append(el("h4", "fld-h", "Sur cet appareil seulement"));
   box.append(setRow("Importer un dossier", "Ancienne méthode : lit un dossier creatures depuis cet appareil (pas synchronisé).", setBtn("Ouvrir", () => { closeSheet(); $("#atlBack").dataset.back = SCREEN === "hub" ? "hub" : "title"; ATL.tab = "folder"; openAtelier(); })));
+}
+// ---------- Donjons (donjons.json) ----------
+function setTabDonjons(box) {
+  box.append(el("p", "sheet-text dim", "Le fichier donjons.json choisit les créatures de chaque donjon, leur niveau et leur force. Chaque donjon a un code qui ne change jamais (L01, E_ABYSSES, S_KYOGRE…). Mets le fichier à la racine de ton dépôt privé : le jeu le lit à chaque synchro, sur tous tes appareils."));
+  const n = Object.keys(DONJONS.map).length;
+  const errs = (typeof SYNC !== "undefined" && SYNC.donjonsErr ? [SYNC.donjonsErr] : []).concat(donjonsCheck());
+  const st = el("div", "set-status" + (n && !errs.length ? " ok" : errs.length ? " warn" : ""));
+  const where = DONJONS.src === "dépôt" ? "donjons.json de ton dépôt" : DONJONS.src === "appareil" ? "donjons.json importé sur cet appareil" : "aucun fichier : chaque donjon garde les réglages du jeu";
+  st.append(el("b", null, n ? n + " donjon" + (n > 1 ? "s réglés" : " réglé") + " par ton fichier" : "Réglages du jeu"), el("small", null, where));
+  for (const e of errs.slice(0, 12)) st.append(el("small", "set-err", e));
+  if (errs.length > 12) st.append(el("small", "set-err", "… et " + (errs.length - 12) + " autres."));
+  box.append(st);
+  const row = el("div", "pause-grid");
+  row.append(setBtn("Télécharger donjons.json", () => { downloadBlob("donjons.json", new Blob([donjonsTemplate()], { type: "application/json" })); toast("Modèle à jour téléchargé : modifie-le puis mets-le dans ton dépôt."); }, "primary"));
+  if (syncOn()) row.append(setBtn("Relire mon dépôt", async b => { b.disabled = true; await syncNow(false); b.disabled = false; renderSettingsTab(); }));
+  box.append(row);
+  // aperçu de chaque donjon
+  box.append(el("h4", "fld-h", "Ce qui apparaît dans chaque donjon"));
+  const list = el("div", "chapters");
+  for (const d of donjonsAll()) {
+    const l = d.loc;
+    const file = !!DONJONS.map[d.code.toUpperCase()];
+    const mons = l.spawn ? [...new Set(l.spawn.filter(x => MON[x.id]).map(x => x.id))] : (l.common_monsters || []).filter(id => MON[id]);
+    const names = mons.length ? mons.slice(0, 8).map(id => MON[id].name).join(", ") + (mons.length > 8 ? " +" + (mons.length - 8) : "") : (d.kind === "inconnu" ? "6 créatures au hasard" : "toutes les créatures communes et rares");
+    const extra = ["niv. " + donjonBaseLevel(l) + (l.lvMax ? " à " + l.lvMax + " max" : "")];
+    if (l.force && l.force !== 1) extra.push("force " + Math.round(l.force * 100) + " %");
+    if (l.boss && MON[l.boss]) extra.push("gardien " + MON[l.boss].name);
+    const c = el("div", "chap" + (file ? " done" : ""));
+    c.append(el("b", null, d.code + " · " + (l.name || d.code)), el("small", null, names), el("small", null, extra.join(" · ") + (file ? " · réglé par ton fichier" : "")));
+    list.append(c);
+  }
+  box.append(list);
+  // sans synchro (version Claude, ou appareil pas branché) : import du fichier sur l'appareil
+  box.append(el("h4", "fld-h", "Sur cet appareil seulement"));
+  const r2 = el("div", "pause-grid");
+  r2.append(setBtn("Importer un donjons.json", () => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
+    inp.onchange = async () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const txt = await f.text(); let js;
+      try { js = JSON.parse(txt); } catch (e) { toast("Fichier illisible" + donjonsWhere(e, txt) + " : vérifie les virgules et les guillemets.", 4200); return; }
+      donjonsSetLocal(js); applyMods(MODS); toast("donjons.json importé sur cet appareil."); renderSettingsTab();
+    };
+    inp.click();
+  }));
+  if (DONJONS.local) r2.append(setBtn("Retirer l’import", () => { donjonsSetLocal(null); applyMods(MODS); toast("Import retiré."); renderSettingsTab(); }));
+  box.append(r2, el("p", "sheet-note", "Si ton dépôt contient un donjons.json, c’est lui qui compte. Un nouveau donjon de l’Atelier a aussi son code : il apparaît dans le modèle téléchargé."));
 }
 // ---------- Sons ----------
 function setTabSons(box) {

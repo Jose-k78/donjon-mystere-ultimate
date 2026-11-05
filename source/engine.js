@@ -62,6 +62,7 @@ function maxHP(u) {
   if (u.boss) v = Math.round(v * (u.bossMul || 2.6));
   else if (u.kind === "enemy") v = Math.round(v * 0.85);
   if (u.shadow) v = Math.round(v * 1.1);
+  if (u.kind === "enemy" && typeof donjonForce === "function") v = Math.max(1, Math.round(v * donjonForce(u)));
   return v;
 }
 function statOf(u, k) {
@@ -69,6 +70,7 @@ function statOf(u, k) {
   let v = (b[k] || 15) * (0.8 + u.lv * 0.06) * rarityOf(u.mid).mul + equipBonus(u, k);
   if (u.boss) v *= 1.12;
   if (u.shadow) v *= 1.08;
+  if (u.kind === "enemy" && typeof donjonForce === "function") v *= donjonForce(u);
   if (u.kind !== "enemy" && !u.guest && typeof hasOrder === "function" && hasOrder("amovenus") && G && G.team.filter(x => x && !x.guest).length >= 3) v *= 1.1;
   return v;
 }
@@ -320,7 +322,7 @@ function genFloor() {
       b.x = w >> 1; b.y = 5; b.aware = false; b.dormant = true;
       R.enemies.push(b);
       for (const dx of ((loc.difficulty || 1) > 1 ? [-3, 3] : [3])) {
-        const m = makeEnemy(pick(enemyPool()), enemyLevel());
+        const m = makeEnemy(typeof pickSpawn === "function" ? pickSpawn() : pick(enemyPool()), enemyLevel());
         m.x = (w >> 1) + dx; m.y = 6; m.dormant = true; R.enemies.push(m);
       }
     }
@@ -355,15 +357,18 @@ function randomItem() {
 }
 function enemyPool() {
   const loc = locById(R.loc);
+  const fromFile = typeof donjonSpawnList === "function" ? donjonSpawnList(loc) : null;
+  if (fromFile) return [...new Set(fromFile.map(x => x.id))];
   const pool = (loc.common_monsters || []).filter(id => MON[id]);
   return pool.length ? pool : DATA.monsters.filter(m => !m.story && (m.rarity || 1) < 3).map(m => m.id);
 }
 // le niveau des créatures suit celui du héros (dès la fin du chapitre 1)
 function enemyLevel() {
+  const cap = locById(R.loc).lvMax, lim = v => cap ? Math.max(1, Math.min(cap, v)) : v;   // niveau_max de donjons.json
   const base = enemyLevelBase();
-  if (typeof R.lvBase === "number" || typeof R.lvFlat === "number" || !G.story.ch1Done) return base;
+  if (typeof R.lvBase === "number" || typeof R.lvFlat === "number" || !G.story.ch1Done) return lim(base);
   const scaled = hero().lv - 1 + Math.floor((R.floor - 1) * 0.5) + ri(-1, 1) + Math.max(0, (locById(R.loc).difficulty || 1) - 2);
-  return Math.max(1, base, scaled);
+  return lim(Math.max(1, base, scaled));
 }
 function enemyLevelBase() {
   const loc = locById(R.loc);
@@ -394,7 +399,7 @@ function spawnEnemy(initial) {
     if (!initial && VISMAP && VISMAP[I(x, y)]) continue;
     if (R.stairs && R.stairs.x === x && R.stairs.y === y) continue;
     const qt = typeof questSpawnFor === "function" ? questSpawnFor() : null;
-    const e = makeEnemy(qt ? qt.target : pickByRarity(enemyPool()), enemyLevel());
+    const e = makeEnemy(qt ? qt.target : (typeof pickSpawn === "function" ? pickSpawn() : pickByRarity(enemyPool())), enemyLevel());
     if (qt) { e.questTarget = qt.id; R.questSpawned = (R.questSpawned || 0) + 1; if (qt.shadow) { e.shadow = true; e.lv += 2; e.hp = maxHP(e); } }
     else if (R.story && rnd() < (locById(R.loc).shadow || 0)) e.shadow = true;
     e.x = x; e.y = y; e.dir = pick(DIRS8);

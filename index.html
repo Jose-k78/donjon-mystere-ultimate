@@ -584,7 +584,7 @@ ul.plain.small { font-size: 0.82rem; color: var(--dim); }
 .set-toggle.on { background: var(--moss); border-color: #b6ffbf; color: #102010; }
 .set-range { width: 140px; accent-color: var(--lantern); }
 .set-status { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--deep); }
-.set-status.ok { border-color: var(--moss); } .set-status.error { border-color: var(--coral); } .set-status.busy { border-color: var(--lantern); } .set-status.cache { border-color: #c39cff; }
+.set-status.ok { border-color: var(--moss); } .set-status.error { border-color: var(--coral); } .set-status.busy { border-color: var(--lantern); } .set-status.cache { border-color: #c39cff; } .set-status.warn { border-color: var(--lantern); }
 .set-status small { color: var(--dim); }
 .set-err { color: var(--coral) !important; }
 .set-help summary { cursor: pointer; color: var(--foam); padding: 6px 0; }
@@ -2742,6 +2742,7 @@ function maxHP(u) {
   if (u.boss) v = Math.round(v * (u.bossMul || 2.6));
   else if (u.kind === "enemy") v = Math.round(v * 0.85);
   if (u.shadow) v = Math.round(v * 1.1);
+  if (u.kind === "enemy" && typeof donjonForce === "function") v = Math.max(1, Math.round(v * donjonForce(u)));
   return v;
 }
 function statOf(u, k) {
@@ -2749,6 +2750,7 @@ function statOf(u, k) {
   let v = (b[k] || 15) * (0.8 + u.lv * 0.06) * rarityOf(u.mid).mul + equipBonus(u, k);
   if (u.boss) v *= 1.12;
   if (u.shadow) v *= 1.08;
+  if (u.kind === "enemy" && typeof donjonForce === "function") v *= donjonForce(u);
   if (u.kind !== "enemy" && !u.guest && typeof hasOrder === "function" && hasOrder("amovenus") && G && G.team.filter(x => x && !x.guest).length >= 3) v *= 1.1;
   return v;
 }
@@ -3000,7 +3002,7 @@ function genFloor() {
       b.x = w >> 1; b.y = 5; b.aware = false; b.dormant = true;
       R.enemies.push(b);
       for (const dx of ((loc.difficulty || 1) > 1 ? [-3, 3] : [3])) {
-        const m = makeEnemy(pick(enemyPool()), enemyLevel());
+        const m = makeEnemy(typeof pickSpawn === "function" ? pickSpawn() : pick(enemyPool()), enemyLevel());
         m.x = (w >> 1) + dx; m.y = 6; m.dormant = true; R.enemies.push(m);
       }
     }
@@ -3035,15 +3037,18 @@ function randomItem() {
 }
 function enemyPool() {
   const loc = locById(R.loc);
+  const fromFile = typeof donjonSpawnList === "function" ? donjonSpawnList(loc) : null;
+  if (fromFile) return [...new Set(fromFile.map(x => x.id))];
   const pool = (loc.common_monsters || []).filter(id => MON[id]);
   return pool.length ? pool : DATA.monsters.filter(m => !m.story && (m.rarity || 1) < 3).map(m => m.id);
 }
 // le niveau des créatures suit celui du héros (dès la fin du chapitre 1)
 function enemyLevel() {
+  const cap = locById(R.loc).lvMax, lim = v => cap ? Math.max(1, Math.min(cap, v)) : v;   // niveau_max de donjons.json
   const base = enemyLevelBase();
-  if (typeof R.lvBase === "number" || typeof R.lvFlat === "number" || !G.story.ch1Done) return base;
+  if (typeof R.lvBase === "number" || typeof R.lvFlat === "number" || !G.story.ch1Done) return lim(base);
   const scaled = hero().lv - 1 + Math.floor((R.floor - 1) * 0.5) + ri(-1, 1) + Math.max(0, (locById(R.loc).difficulty || 1) - 2);
-  return Math.max(1, base, scaled);
+  return lim(Math.max(1, base, scaled));
 }
 function enemyLevelBase() {
   const loc = locById(R.loc);
@@ -3074,7 +3079,7 @@ function spawnEnemy(initial) {
     if (!initial && VISMAP && VISMAP[I(x, y)]) continue;
     if (R.stairs && R.stairs.x === x && R.stairs.y === y) continue;
     const qt = typeof questSpawnFor === "function" ? questSpawnFor() : null;
-    const e = makeEnemy(qt ? qt.target : pickByRarity(enemyPool()), enemyLevel());
+    const e = makeEnemy(qt ? qt.target : (typeof pickSpawn === "function" ? pickSpawn() : pickByRarity(enemyPool())), enemyLevel());
     if (qt) { e.questTarget = qt.id; R.questSpawned = (R.questSpawned || 0) + 1; if (qt.shadow) { e.shadow = true; e.lv += 2; e.hp = maxHP(e); } }
     else if (R.story && rnd() < (locById(R.loc).shadow || 0)) e.shadow = true;
     e.x = x; e.y = y; e.dir = pick(DIRS8);
@@ -4922,6 +4927,7 @@ const Store = {
   },
   async saveMods(mods) {
     if (typeof syncStripLayer === "function") mods = syncStripLayer(mods);
+    if (typeof donjonsUnbake === "function") mods = donjonsUnbake(mods);
     lsSet(LS_MODS, mods);
     if (typeof syncMarkDirty === "function") syncMarkDirty("mods");
     if (this.db && this.canEdit) {
@@ -5100,6 +5106,7 @@ function applyMods(mods) {
   }
   DATA = base;
   indexData();
+  if (typeof donjonsApplyAll === "function") donjonsApplyAll();   // donjons.json (tes créatures par donjon)
   for (const k in TILESET_CACHE) delete TILESET_CACHE[k];
 }
 // Calcule ce qui a été retiré par rapport aux données d'origine
@@ -5266,7 +5273,7 @@ async function syncFetchIndex() {
 }
 function syncMidOf(folder) { const m = /^(?:id)?0*(\d{1,4})$/i.exec(folder); return m && +m[1] >= 1 ? String(+m[1]).padStart(3, "0") : null; }
 function syncBuildMaps() {
-  SYNC.crea = new Map(); SYNC.media = new Map(); SYNC.partie = {};
+  SYNC.crea = new Map(); SYNC.media = new Map(); SYNC.partie = {}; SYNC.donjonsF = null;
   if (!SYNC.index) return;
   const slots = mediaSlots(), keys = new Set(slots.map(s => s.k));
   for (const [path, sha, size] of SYNC.index.files) {
@@ -5281,6 +5288,7 @@ function syncBuildMaps() {
       if (!key) continue;
       SYNC.media.set(key, { path, sha, size, name: base, kind: top === "sons" ? "audio" : "img" });
     } else if (top === "partie" && p.length === 2) SYNC.partie[p[1].toLowerCase()] = { path, sha, size };
+    else if (p.length === 1 && top === "donjons.json") SYNC.donjonsF = { path, sha, size };
   }
   for (const C of SYNC.crea.values()) {
     C.pmd = !!C.f["animdata.xml"];
@@ -5584,13 +5592,32 @@ async function syncResolveConflict(kind) {
     openSheet({ title: "Deux versions différentes", body, noDismiss: true, actions: acts });
   });
 }
+// ---------- donjons.json (créatures de chaque donjon) ----------
+async function syncLoadDonjons(fetchIt) {
+  if (typeof donjonsSetRepo !== "function") return false;
+  const F = SYNC.donjonsF, before = SYNC.donjonsSha || null;
+  if (!F) { SYNC.donjonsSha = null; SYNC.donjonsErr = ""; if (DONJONS.repo) { donjonsSetRepo(null); return true; } return false; }
+  if (F.sha === before && DONJONS.repo) return false;
+  let b, js;
+  try { b = await blobBySha(F.sha, "donjons.json", !fetchIt); } catch (e) { return false; }
+  if (!b) return false;
+  SYNC.donjonsSha = F.sha;
+  try { js = JSON.parse(await b.text()); }
+  catch (e) { SYNC.donjonsErr = "donjons.json est illisible" + donjonsWhere(e, await b.text()) + " : vérifie les virgules, les guillemets et les crochets. Le jeu garde la version d’avant."; return false; }
+  SYNC.donjonsErr = ""; SYNC.donjonsSha = F.sha; donjonsSetRepo(js);
+  return true;
+}
+function donjonsWhere(e, text) {
+  const m = /position (\d+)/.exec(String(e && e.message)); if (!m) { const l = /line (\d+)/.exec(String(e && e.message)); return l ? " (ligne " + l[1] + ")" : ""; }
+  return " (ligne " + (String(text).slice(0, +m[1]).split("\n").length) + ")";
+}
 // ---------- démarrage et synchro complète ----------
 async function syncBoot() {
   if (!syncOn()) { SYNC.status = "off"; return; }
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
   // 1) tout de suite, avec ce qui est déjà sur l'appareil (marche hors ligne)
   const cached = await IDB.get("sync:index");
-  if (cached && cached.files) { SYNC.index = cached; syncBuildMaps(); SYNC.status = "cache"; await syncBuildLayer(false); applyMods(MODS); await syncApplyMedia(); }
+  if (cached && cached.files) { SYNC.index = cached; syncBuildMaps(); SYNC.status = "cache"; await syncBuildLayer(false); await syncLoadDonjons(false); applyMods(MODS); await syncApplyMedia(); }
   // 2) puis la version en ligne
   await syncNow(true);
 }
@@ -5599,7 +5626,9 @@ async function syncNow(boot, onProg) {
   syncSetStatus("busy", "Synchronisation…");
   try {
     const changed = await syncFetchIndex();
-    if (changed || !SYNC.layer.length || [...SYNC.crea.values()].some(C => C.json && C.js === undefined)) { await syncBuildLayer(true, onProg || ((n, t) => syncSetStatus("busy", "Lecture des créatures : " + n + "/" + t))); applyMods(MODS); }
+    let reapply = await syncLoadDonjons(true);
+    if (changed || !SYNC.layer.length || [...SYNC.crea.values()].some(C => C.json && C.js === undefined)) { await syncBuildLayer(true, onProg || ((n, t) => syncSetStatus("busy", "Lecture des créatures : " + n + "/" + t))); reapply = true; }
+    if (reapply) applyMods(MODS);
     SYNC.status = "ok";
     await syncApplyMedia();
     if (changed) { SYNC.failed.clear(); SYNC.done.clear(); for (const mid in SPRITES) if (SPRITES[mid].doc && SPRITES[mid].doc.repo) delete SPRITES[mid]; SYNC.emo = {}; }
@@ -5660,6 +5689,196 @@ function syncStats() {
   for (const C of SYNC.crea.values()) { if (C.pmd) pmd++; else if (C.imgs.length) still++; if (C.json) json++; }
   for (const m of SYNC.layer) if (!def.has(m.id)) created++;
   return { folders: SYNC.crea.size, pmd, still, json, created, media: SYNC.media.size, truncated: SYNC.index && SYNC.index.truncated };
+}
+
+// =====================================================================
+//  donjons.json : tu choisis toi-même les créatures de chaque donjon
+//  Le fichier est à la racine de ton dépôt privé (synchro), ou importé
+//  sur l'appareil (Paramètres → Donjons). Un donjon absent du fichier
+//  garde les réglages du jeu.
+// =====================================================================
+const DONJONS_LS = "dmu-donjons";
+const DONJONS = { repo: null, local: null, map: {}, src: "", orig: {}, pre: {}, applied: {} };
+const DONJON_FIELDS = ["common_monsters", "boss", "level", "floors"];
+
+// "045", 45, "0045", "45 Rapinard", "id045" → "045"
+function donjonMid(v) {
+  if (v == null) return null;
+  const m = /^\s*(?:id)?0*(\d{1,4})(?!\d)/i.exec(String(v));
+  return m && +m[1] >= 1 ? String(+m[1]).padStart(3, "0") : null;
+}
+// "1-3", "5", "5-" (jusqu'à la fin), 4 → [début, fin]
+function donjonRange(v) {
+  if (v == null || v === "") return null;
+  const m = /^\s*(\d+)\s*(?:[-–àa]\s*(\d*))?\s*$/.exec(String(v));
+  if (!m) return null;
+  const a = +m[1], b = m[2] === undefined ? a : (m[2] === "" ? 9999 : +m[2]);
+  return [Math.min(a, b), Math.max(a, b)];
+}
+function donjonParse(js) {
+  const map = {};
+  if (!js || typeof js !== "object") return map;
+  const list = js.donjons && typeof js.donjons === "object" ? js.donjons : js;
+  for (const code in list) {
+    if (code.startsWith("_")) continue;
+    const e = list[code]; if (!e || typeof e !== "object" || Array.isArray(e)) continue;
+    const o = { code: code.toUpperCase(), bad: [] };
+    if (Array.isArray(e.creatures)) {
+      o.mons = [];
+      for (const c of e.creatures) {
+        const obj = c && typeof c === "object";
+        const id = donjonMid(obj ? c.id : c);
+        if (!id) { o.bad.push(String(obj ? JSON.stringify(c) : c)); continue; }
+        o.mons.push({ id, w: obj && typeof c.poids === "number" && c.poids > 0 ? Math.min(c.poids, 1000) : 1, f: obj ? donjonRange(c.etages) : null });
+      }
+    }
+    if (e.gardien != null && String(e.gardien).trim() !== "") { o.boss = donjonMid(e.gardien); if (!o.boss) o.bad.push("gardien " + e.gardien); }
+    if (typeof e.niveau === "number" && e.niveau > 0) o.level = Math.min(100, Math.round(e.niveau));
+    if (typeof e.niveau_max === "number" && e.niveau_max > 0) o.lvMax = Math.min(100, Math.round(e.niveau_max));
+    if (typeof e.force === "number" && e.force > 0 && e.force !== 100) o.force = Math.max(10, Math.min(500, e.force)) / 100;
+    if (typeof e.etages === "number" && e.etages > 0) o.floors = Math.max(1, Math.min(99, Math.round(e.etages)));
+    map[o.code] = o;
+  }
+  return map;
+}
+// le fichier du dépôt passe avant celui importé sur l'appareil
+function donjonsRefresh() {
+  const use = DONJONS.repo || DONJONS.local;
+  DONJONS.src = DONJONS.repo ? "dépôt" : DONJONS.local ? "appareil" : "";
+  DONJONS.map = use ? donjonParse(use) : {};
+}
+function donjonsSetRepo(js) { DONJONS.repo = js || null; donjonsRefresh(); }
+function donjonsSetLocal(js) { DONJONS.local = js || null; if (js) lsSet(DONJONS_LS, js); else { try { localStorage.removeItem(DONJONS_LS); } catch (e) { } } donjonsRefresh(); }
+DONJONS.local = lsGet(DONJONS_LS); donjonsRefresh();
+
+// applique le réglage du fichier à un lieu (kind : "lieu" = donjon normal, "histoire", "special", "inconnu")
+function donjonApply(loc, kind) {
+  if (!loc || !loc.id) return loc;
+  const id = String(loc.id).toUpperCase();
+  if (kind === "special") { if (!DONJONS.orig[id]) DONJONS.orig[id] = { common_monsters: (loc.common_monsters || []).slice(), boss: loc.boss, level: loc.level }; Object.assign(loc, JSON.parse(JSON.stringify(DONJONS.orig[id]))); }
+  delete loc.spawn; delete loc.lvMax; delete loc.force; delete loc.fromFile;
+  const o = DONJONS.map[id]; if (!o) { if (kind === "lieu") { delete DONJONS.pre[id]; delete DONJONS.applied[id]; } return loc; }
+  if (kind === "lieu") { const pre = {}; for (const f of DONJON_FIELDS) pre[f] = loc[f] === undefined ? undefined : JSON.parse(JSON.stringify(loc[f])); DONJONS.pre[id] = pre; }
+  loc.fromFile = true;
+  if (o.mons) {
+    const ok = o.mons.filter(x => MON[x.id]);
+    if (ok.length) { loc.common_monsters = [...new Set(ok.map(x => x.id))]; loc.spawn = ok; }
+  }
+  if (o.boss && MON[o.boss]) loc.boss = o.boss;
+  if (o.level) loc.level = o.level;
+  if (o.lvMax) loc.lvMax = o.lvMax;
+  if (o.force) loc.force = o.force;
+  if (o.floors && kind === "lieu" && !loc.tower) loc.floors = o.floors;
+  if (kind === "lieu") { const ap = {}; for (const f of DONJON_FIELDS) ap[f] = loc[f] === undefined ? undefined : JSON.parse(JSON.stringify(loc[f])); DONJONS.applied[id] = ap; }
+  return loc;
+}
+// l'Atelier n'enregistre pas les valeurs venues du fichier (sinon elles resteraient après les avoir retirées du fichier) ;
+// ce que tu as changé toi-même dans l'Atelier est gardé
+function donjonsUnbake(mods) {
+  if (!mods || !Array.isArray(mods.locations)) return mods;
+  const locs = mods.locations.map(l => {
+    if (!l || !l.id) return l;
+    const id = String(l.id).toUpperCase(), pre = DONJONS.pre[id], ap = DONJONS.applied[id];
+    const c = Object.assign({}, l); delete c.spawn; delete c.lvMax; delete c.force; delete c.fromFile;
+    if (pre && ap) for (const f of DONJON_FIELDS) if (JSON.stringify(c[f]) === JSON.stringify(ap[f])) { if (pre[f] === undefined) delete c[f]; else c[f] = JSON.parse(JSON.stringify(pre[f])); }
+    return c;
+  });
+  return Object.assign({}, mods, { locations: locs });
+}
+function donjonsApplyAll() {
+  for (const l of DATA.locations) donjonApply(l, "lieu");
+  for (const k of ["TOURNOI", "ARENE"]) if (SPECIAL_LOCS[k]) donjonApply(SPECIAL_LOCS[k], "special");
+}
+// créatures possibles à l'étage actuel (le fichier peut les répartir par étages)
+function donjonSpawnList(loc) {
+  if (!loc || !loc.spawn) return null;
+  const f = (typeof R !== "undefined" && R && R.floor) || 1;
+  const ok = loc.spawn.filter(x => MON[x.id]);
+  const here = ok.filter(x => !x.f || (f >= x.f[0] && f <= x.f[1]));
+  return here.length ? here : ok.length ? ok : null;
+}
+// tirage : poids du fichier × rareté (les rares et légendaires restent plus rares)
+function pickSpawn() {
+  const loc = locById(R.loc), list = donjonSpawnList(loc);
+  if (!list) return pickByRarity(enemyPool());
+  let tot = 0; const ws = list.map(x => { const w = rarityOf(x.id).weight * x.w; tot += w; return w; });
+  let r = rnd() * tot;
+  for (let i = 0; i < list.length; i++) { r -= ws[i]; if (r <= 0) return list[i].id; }
+  return list[0].id;
+}
+function donjonForce(u) {
+  if (!u || u.kind !== "enemy" || typeof R === "undefined" || !R || R.tour) return 1;
+  const l = R.loc && (LOC[R.loc] || SPECIAL_LOCS[R.loc]);
+  return (l && l.force) || 1;
+}
+// ---------- tous les donjons connus du jeu ----------
+function donjonsAll() {
+  const out = [];
+  for (const l of DATA.locations) out.push({ code: l.id, loc: l, kind: "lieu" });
+  // copies (sans toucher aux missions en cours)
+  if (typeof STORY_MISSIONS !== "undefined") for (const id in STORY_MISSIONS) {
+    const M = STORY_MISSIONS[id];
+    out.push({ code: id, kind: "histoire", loc: donjonApply(Object.assign({ id }, M, { common_monsters: (M.common_monsters || []).filter(m => MON[m]), boss: M.boss && MON[M.boss] ? M.boss : null, level: M.level }), "histoire") });
+  }
+  for (const k of ["TOURNOI", "ARENE"]) if (SPECIAL_LOCS[k]) out.push({ code: k, loc: SPECIAL_LOCS[k], kind: "special" });
+  out.push({ code: "INCONNU", kind: "inconnu", loc: donjonApply({ id: "INCONNU", name: "Donjon inconnu (change à chaque visite)", difficulty: 3, common_monsters: [] }, "inconnu") });
+  return out;
+}
+function donjonBaseLevel(loc) { return typeof loc.level === "number" ? loc.level : [0, 2, 6, 10, 14, 18][clamp(loc.difficulty || 1, 1, 5)]; }
+// ce qui ne va pas dans le fichier (créatures inconnues, codes inconnus…)
+function donjonsCheck() {
+  const errs = [], known = new Set(donjonsAll().map(d => d.code.toUpperCase()));
+  for (const code in DONJONS.map) {
+    const o = DONJONS.map[code];
+    if (!known.has(code)) errs.push(code + " : ce code de donjon n’existe pas dans le jeu.");
+    for (const b of o.bad) errs.push(code + " : « " + b + " » n’est pas un numéro de créature.");
+    if (o.mons) {
+      const miss = [...new Set(o.mons.filter(x => !MON[x.id]).map(x => x.id))];
+      if (miss.length) errs.push(code + " : créature" + (miss.length > 1 ? "s " : " ") + miss.join(", ") + (miss.length > 1 ? " absentes du jeu (ignorées)." : " absente du jeu (ignorée)."));
+      if (o.mons.length && !o.mons.some(x => MON[x.id])) errs.push(code + " : aucune créature valable, le donjon garde sa liste du jeu.");
+    }
+    if (o.boss && !MON[o.boss]) errs.push(code + " : le gardien " + o.boss + " n’existe pas dans le jeu (ignoré).");
+  }
+  return errs;
+}
+// ---------- modèle à jour, prêt à modifier ----------
+function donjonsTemplate() {
+  const q = s => JSON.stringify(s);
+  const label = id => id + (MON[id] ? " " + MON[id].name : "");
+  const lines = ["{", "  \"_aide\": ["];
+  const help = [
+    "Une entrée par donjon. Le code (L01, E_ABYSSES, S_KYOGRE…) ne change jamais.",
+    "creatures : les créatures qui apparaissent. Seul le numéro compte, le nom après est là pour t’aider : \"045 Rapinard\", \"0150\" ou 150.",
+    "Pour des étages précis ou plus souvent : {\"id\": \"150\", \"etages\": \"1-3\", \"poids\": 2}  (poids 2 = deux fois plus souvent ; les rares et légendaires restent plus rares).",
+    "gardien : la créature du dernier étage (\"\" = celle du jeu).",
+    "niveau : niveau des créatures au 1er étage (il monte un peu à chaque étage). Après le chapitre 1, elles suivent aussi ton niveau.",
+    "niveau_max : elles ne dépassent jamais ce niveau (le gardien peut avoir 2 niveaux de plus). null = pas de limite.",
+    "force : 100 = normal, 70 = 30 % moins fortes, 130 = 30 % plus fortes.",
+    "etages : nombre d’étages (donjons du menu seulement). Un donjon retiré du fichier reprend les réglages du jeu."
+  ];
+  help.forEach((h, i) => lines.push("    " + q(h) + (i < help.length - 1 ? "," : "")));
+  lines.push("  ],", "  \"donjons\": {");
+  const all = donjonsAll();
+  all.forEach((d, i) => {
+    const l = d.loc, o = DONJONS.map[d.code.toUpperCase()];
+    const mons = (l.common_monsters || []).filter(id => MON[id]);
+    let cre;
+    if (o && o.mons) cre = o.mons.map(x => (x.f || x.w !== 1) ? "{\"id\": " + q(label(x.id)) + (x.f ? ", \"etages\": " + q(x.f[0] + (x.f[1] === x.f[0] ? "" : "-" + (x.f[1] >= 9999 ? "" : x.f[1]))) : "") + (x.w !== 1 ? ", \"poids\": " + x.w : "") + "}" : q(label(x.id)));
+    else cre = mons.map(id => q(label(id)));
+    const fields = ["\"nom\": " + q(l.name || d.code)];
+    if (d.kind === "lieu" && !l.tower) fields.push("\"etages\": " + (l.floors || 5));
+    fields.push("\"niveau\": " + (o && o.level ? o.level : donjonBaseLevel(l)), "\"niveau_max\": " + (o && o.lvMax ? o.lvMax : "null"), "\"force\": " + (o && o.force ? Math.round(o.force * 100) : 100));
+    const boss = l.boss && MON[l.boss] ? label(l.boss) : "";
+    fields.push("\"gardien\": " + q(boss));
+    const note = d.kind === "histoire" ? (l.tower ? "Tour de 100 étages : liste vide = toutes les créatures communes et rares." : "Mission de l’histoire.") : d.kind === "inconnu" ? "Liste vide = 6 créatures au hasard à chaque visite." : d.code === "TOURNOI" ? "Créatures sauvages du tournoi (les équipes rivales ne changent pas)." : "";
+    if (note) fields.push("\"_note\": " + q(note));
+    lines.push("    " + q(d.code) + ": {");
+    lines.push("      " + fields.join(", ") + ",");
+    lines.push("      \"creatures\": [" + cre.join(", ") + "]");
+    lines.push("    }" + (i < all.length - 1 ? "," : ""));
+  });
+  lines.push("  }", "}");
+  return lines.join("\n") + "\n";
 }
 
 // ============================================================
@@ -9588,6 +9807,11 @@ function genUnknown() {
   const pool = []; const all = DATA.monsters.map(m => m.id);
   while (pool.length < 6 && pool.length < all.length) { const id = pick(all); if (!pool.includes(id)) pool.push(id); }
   const loc = { id: "INCONNU", name: pick(UNK_A) + " " + pick(UNK_B), floors: ri(4, 8), difficulty: 3, themeOf: pick(keys), common_monsters: pool, boss: pick(pool.filter(id => (MON[id].rarity || 1) < 3).concat(pool)), unknown: true, description: "Un donjon qui change à chaque visite." };
+  if (typeof donjonApply === "function") {          // donjons.json : « INCONNU »
+    donjonApply(loc, "inconnu");
+    const o = DONJONS.map.INCONNU;
+    if (loc.spawn && !(o && o.boss && MON[o.boss])) loc.boss = pick(loc.common_monsters.filter(id => (MON[id].rarity || 1) < 3).concat(loc.common_monsters));
+  }
   G.unknown = loc; SPECIAL_LOCS.INCONNU = loc;
   return loc;
 }
@@ -9849,8 +10073,10 @@ function storyLoc(id) {
   const L = SPECIAL_LOCS[id];
   L.common_monsters = (STORY_MISSIONS[id].common_monsters || []).filter(m => MON[m]);
   if (!L.common_monsters.length) L.common_monsters = storyMons();
+  L.boss = STORY_MISSIONS[id].boss; L.level = STORY_MISSIONS[id].level;
   if (L.bossRole) L.boss = castMid(L.bossRole);
   if (L.boss && !MON[L.boss]) L.boss = null;
+  if (typeof donjonApply === "function") donjonApply(L, "histoire");
   return L;
 }
 // ---------- personnages ----------
@@ -10934,7 +11160,7 @@ function importSaveText(txt) {
 // ============================================================
 //  PARAMÈTRES (refonte) : Jeu · Synchro · Sprites · Sons · Sauvegarde · Atelier
 // ============================================================
-const SET_TABS = [["jeu", "Jeu"], ["synchro", "Synchro"], ["sprites", "Sprites"], ["sons", "Sons"], ["sauvegarde", "Sauvegarde"], ["atelier", "Atelier"]];
+const SET_TABS = [["jeu", "Jeu"], ["synchro", "Synchro"], ["sprites", "Sprites"], ["donjons", "Donjons"], ["sons", "Sons"], ["sauvegarde", "Sauvegarde"], ["atelier", "Atelier"]];
 const SETTINGS = { tab: "jeu", box: null, open: false };
 function openSettings(tab) {
   SETTINGS.tab = tab || SETTINGS.tab || "jeu";
@@ -10951,7 +11177,7 @@ function openSettings(tab) {
   openSheet({ title: "Paramètres", body, tall: true, actions: [{ label: "Fermer", cls: "ghost" }], onClose: () => { SETTINGS.open = false; } });
   renderSettingsTab();
 }
-function onSyncStatus() { if (SETTINGS.open && (SETTINGS.tab === "synchro" || SETTINGS.tab === "sprites")) renderSettingsTab(); }
+function onSyncStatus() { if (SETTINGS.open && (SETTINGS.tab === "synchro" || SETTINGS.tab === "sprites" || SETTINGS.tab === "donjons")) renderSettingsTab(); }
 function setRow(label, sub, ctrl) {
   const r = el("div", "set-row");
   const t = el("div", "set-tx"); t.append(el("b", null, label)); if (sub) t.append(el("small", null, sub));
@@ -10966,7 +11192,7 @@ function renderSettingsTab() {
   const box = SETTINGS.box; if (!box) return;
   const scroll = box.parentElement && box.parentElement.parentElement ? box.parentElement.parentElement.scrollTop : 0;
   box.replaceChildren();
-  ({ jeu: setTabJeu, synchro: setTabSync, sprites: setTabSprites, sons: setTabSons, sauvegarde: setTabSave, atelier: setTabAtelier }[SETTINGS.tab] || setTabJeu)(box);
+  ({ jeu: setTabJeu, synchro: setTabSync, sprites: setTabSprites, donjons: setTabDonjons, sons: setTabSons, sauvegarde: setTabSave, atelier: setTabAtelier }[SETTINGS.tab] || setTabJeu)(box);
   if (box.parentElement && box.parentElement.parentElement) box.parentElement.parentElement.scrollTop = scroll;
 }
 // ---------- Jeu ----------
@@ -11055,6 +11281,53 @@ function setTabSprites(box) {
   }
   box.append(el("h4", "fld-h", "Sur cet appareil seulement"));
   box.append(setRow("Importer un dossier", "Ancienne méthode : lit un dossier creatures depuis cet appareil (pas synchronisé).", setBtn("Ouvrir", () => { closeSheet(); $("#atlBack").dataset.back = SCREEN === "hub" ? "hub" : "title"; ATL.tab = "folder"; openAtelier(); })));
+}
+// ---------- Donjons (donjons.json) ----------
+function setTabDonjons(box) {
+  box.append(el("p", "sheet-text dim", "Le fichier donjons.json choisit les créatures de chaque donjon, leur niveau et leur force. Chaque donjon a un code qui ne change jamais (L01, E_ABYSSES, S_KYOGRE…). Mets le fichier à la racine de ton dépôt privé : le jeu le lit à chaque synchro, sur tous tes appareils."));
+  const n = Object.keys(DONJONS.map).length;
+  const errs = (typeof SYNC !== "undefined" && SYNC.donjonsErr ? [SYNC.donjonsErr] : []).concat(donjonsCheck());
+  const st = el("div", "set-status" + (n && !errs.length ? " ok" : errs.length ? " warn" : ""));
+  const where = DONJONS.src === "dépôt" ? "donjons.json de ton dépôt" : DONJONS.src === "appareil" ? "donjons.json importé sur cet appareil" : "aucun fichier : chaque donjon garde les réglages du jeu";
+  st.append(el("b", null, n ? n + " donjon" + (n > 1 ? "s réglés" : " réglé") + " par ton fichier" : "Réglages du jeu"), el("small", null, where));
+  for (const e of errs.slice(0, 12)) st.append(el("small", "set-err", e));
+  if (errs.length > 12) st.append(el("small", "set-err", "… et " + (errs.length - 12) + " autres."));
+  box.append(st);
+  const row = el("div", "pause-grid");
+  row.append(setBtn("Télécharger donjons.json", () => { downloadBlob("donjons.json", new Blob([donjonsTemplate()], { type: "application/json" })); toast("Modèle à jour téléchargé : modifie-le puis mets-le dans ton dépôt."); }, "primary"));
+  if (syncOn()) row.append(setBtn("Relire mon dépôt", async b => { b.disabled = true; await syncNow(false); b.disabled = false; renderSettingsTab(); }));
+  box.append(row);
+  // aperçu de chaque donjon
+  box.append(el("h4", "fld-h", "Ce qui apparaît dans chaque donjon"));
+  const list = el("div", "chapters");
+  for (const d of donjonsAll()) {
+    const l = d.loc;
+    const file = !!DONJONS.map[d.code.toUpperCase()];
+    const mons = l.spawn ? [...new Set(l.spawn.filter(x => MON[x.id]).map(x => x.id))] : (l.common_monsters || []).filter(id => MON[id]);
+    const names = mons.length ? mons.slice(0, 8).map(id => MON[id].name).join(", ") + (mons.length > 8 ? " +" + (mons.length - 8) : "") : (d.kind === "inconnu" ? "6 créatures au hasard" : "toutes les créatures communes et rares");
+    const extra = ["niv. " + donjonBaseLevel(l) + (l.lvMax ? " à " + l.lvMax + " max" : "")];
+    if (l.force && l.force !== 1) extra.push("force " + Math.round(l.force * 100) + " %");
+    if (l.boss && MON[l.boss]) extra.push("gardien " + MON[l.boss].name);
+    const c = el("div", "chap" + (file ? " done" : ""));
+    c.append(el("b", null, d.code + " · " + (l.name || d.code)), el("small", null, names), el("small", null, extra.join(" · ") + (file ? " · réglé par ton fichier" : "")));
+    list.append(c);
+  }
+  box.append(list);
+  // sans synchro (version Claude, ou appareil pas branché) : import du fichier sur l'appareil
+  box.append(el("h4", "fld-h", "Sur cet appareil seulement"));
+  const r2 = el("div", "pause-grid");
+  r2.append(setBtn("Importer un donjons.json", () => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
+    inp.onchange = async () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const txt = await f.text(); let js;
+      try { js = JSON.parse(txt); } catch (e) { toast("Fichier illisible" + donjonsWhere(e, txt) + " : vérifie les virgules et les guillemets.", 4200); return; }
+      donjonsSetLocal(js); applyMods(MODS); toast("donjons.json importé sur cet appareil."); renderSettingsTab();
+    };
+    inp.click();
+  }));
+  if (DONJONS.local) r2.append(setBtn("Retirer l’import", () => { donjonsSetLocal(null); applyMods(MODS); toast("Import retiré."); renderSettingsTab(); }));
+  box.append(r2, el("p", "sheet-note", "Si ton dépôt contient un donjons.json, c’est lui qui compte. Un nouveau donjon de l’Atelier a aussi son code : il apparaît dans le modèle téléchargé."));
 }
 // ---------- Sons ----------
 function setTabSons(box) {
@@ -12026,4 +12299,4 @@ try {
 
 })();
 </script>
-<script>window.DMU_VERSION="20261105-2301";if("serviceWorker"in navigator&&location.protocol==="https:"){addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.update&&r.update();}).catch(function(){});});}</script></body></html>
+<script>window.DMU_VERSION="20261105-2352";if("serviceWorker"in navigator&&location.protocol==="https:"){addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.update&&r.update();}).catch(function(){});});}</script></body></html>

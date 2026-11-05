@@ -13,6 +13,7 @@ Fan game fait par moi et pour moi — José.
 
 - **Paramètres refaits en onglets** : Jeu, Synchro, Sprites, Sons, Sauvegarde, Atelier.
 - **Synchro avec un dépôt GitHub privé séparé** : le jeu installé sur le PC et sur le téléphone lit ses sprites (`creatures/0001` → créature 001…), ses sons et ses images dans un dépôt privé, et y range la partie, l’Atelier et les réglages. Mêmes données sur tous les appareils, téléchargement à la demande, mémoire hors ligne, choix guidé si deux appareils ont changé la même chose (l’autre version est gardée en secours).
+- **donjons.json** : un fichier (dans le dépôt privé, ou importé sur l’appareil) choisit les créatures de chaque donjon par son code (L01, E_ABYSSES, S_KYOGRE…), avec niveau, niveau maximum, force, gardien et répartition par étages. Paramètres → Donjons montre l’aperçu et les erreurs, et donne un modèle à jour.
 - Ce dépôt-ci ne contient que le code du jeu : aucune donnée personnelle n’y est envoyée.
 
 ## Contenu (version 4)
