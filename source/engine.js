@@ -60,7 +60,7 @@ function maxHP(u) {
   const b = monById(u.mid);
   let v = Math.round((b.hp || 40) * (0.8 + u.lv * 0.08) * rarityOf(u.mid).mul) + 4 + equipBonus(u, "hp");
   if (u.boss) v = Math.round(v * (u.bossMul || 2.6));
-  else if (u.kind === "enemy") v = Math.round(v * 0.85);
+  else if (u.kind === "enemy" && u.fac !== "ctfB") v = Math.round(v * 0.85);   // (Capture de Relique : à armes égales)
   if (u.shadow) v = Math.round(v * 1.1);
   if (u.kind === "enemy" && typeof donjonForce === "function") v = Math.max(1, Math.round(v * donjonForce(u)));
   return v;
@@ -157,6 +157,7 @@ function hostilesOf(u) { return u.kind === "enemy" ? activeTeam().concat(R.enemi
 //  GÉNÉRATION D'ÉTAGE
 // ------------------------------------------------------------
 function genFloor() {
+  if (R.ctf && typeof ctfGenFloor === "function") { ctfGenFloor(); return; }   // Capture de Relique
   const loc = locById(R.loc);
   const th = themeOf(R.loc);
   const isBoss = R.floor >= R.floors;
@@ -414,6 +415,7 @@ function spawnEnemy(initial) {
 //  VISIBILITÉ
 // ------------------------------------------------------------
 function updateVis() {
+  if (R.ctf && typeof ctfUpdateVis === "function") { ctfUpdateVis(); return; }
   const h = hero();
   VISMAP = new Uint8Array(R.w * R.h);
   const th = themeOf(R.loc);
@@ -494,19 +496,19 @@ const FX = [];      // effets (popups, projectiles, éclats)
 let GHOSTS = [];    // unités K.O. encore affichées
 function vis(u) { return VIS[u.uid] || (VIS[u.uid] = { tw: [], atk: null, hurt: 0 }); }
 const TL = {
-  cursor: 0, moveStart: null, moveEnd: 0, events: [],
+  cursor: 0, moveStart: null, moveEnd: 0, events: [], k: 1,   // k : vitesse des animations (Capture de Relique accélérée)
   now() { return performance.now(); },
   base() { return Math.max(this.now(), this.cursor); },
   move(u, fx, fy, steps) {
     if (this.moveStart === null) this.moveStart = this.base();
-    const dur = MOVE_MS * (steps || 1);
+    const dur = MOVE_MS * (steps || 1) * (this.k || 1);
     vis(u).tw.push({ fx, fy, tx: u.x, ty: u.y, t0: this.moveStart, dur });
     this.moveEnd = Math.max(this.moveEnd, this.moveStart + dur);
   },
   action(dur, fn) {
     let t = this.base();
     if (this.moveStart !== null) { t = Math.max(t, this.moveEnd); this.moveStart = null; }
-    this.events.push({ t, fn }); this.cursor = t + dur;
+    this.events.push({ t, fn }); this.cursor = t + dur * (this.k || 1);
   },
   note(fn) {
     const t = this.moveStart !== null ? this.moveEnd : this.base();
@@ -573,12 +575,13 @@ function calcDamage(user, target, mv) {
   if (mv.id !== "_basic" && ut.includes(mv.type)) d *= 1.25;
   const tm = typeMult(mv.type, monById(target.mid).types);
   d *= tm;
-  if (user.kind === "enemy") d *= user.boss ? (user.crew ? 0.6 : 0.72) : user.fac ? 0.46 : 0.58; else d *= 1.12;
+  if (R && R.ctf) d *= 0.85;   // Capture de Relique : les deux équipes à armes égales
+  else if (user.kind === "enemy") d *= user.boss ? (user.crew ? 0.6 : 0.72) : user.fac ? 0.46 : 0.58; else d *= 1.12;
   d *= clamp(1 + (user.lv - target.lv) * 0.03, 0.7, 1.5);
   const crit = rnd() < 0.06; if (crit) d *= 1.5;
   d *= 0.85 + rnd() * 0.15;
   // un coup ennemi ne retire jamais plus d'un tiers des PV max (45 % pour un gardien)
-  if (user.kind === "enemy" && target.kind !== "enemy") d = Math.min(d, maxHP(target) * (user.boss ? 0.4 : user.fac ? 0.22 : 0.3));
+  if (user.kind === "enemy" && target.kind !== "enemy" && !(R && R.ctf)) d = Math.min(d, maxHP(target) * (user.boss ? 0.4 : user.fac ? 0.22 : 0.3));
   return { dmg: Math.max(1, Math.round(d)), tm, crit };
 }
 function moveRange(mv) { return mv.range || (mv.effect === "hit_all" ? "room" : mv.effect === "heal" ? "self" : "front"); }
@@ -737,6 +740,7 @@ function dropLoot(t, rate) {
   TL.note(() => { if (isVisible(x, y)) FX.push({ k: "burst", x, y, col: "#ffd166", t0: performance.now(), dur: 360 }); });
 }
 function handleKO(t, killer) {
+  if (R && R.ctf && typeof ctfKO === "function") { ctfKO(t, killer); return; }   // K.O. jusqu'au prochain point
   if (t.kind === "enemy") {
     R.enemies = R.enemies.filter(e => e !== t);
     const g = { u: t, fade: 0 };
@@ -889,6 +893,7 @@ function stepUnit(u, d) {
   u.x = nx; u.y = ny; u.dir = d;
   TL.move(u, fx, fy);
   if (isAllyKind(u)) allyPickUp(u);
+  if (R.ctf && typeof ctfAfterStep === "function") ctfAfterStep(u);
   return true;
 }
 // les coéquipiers ramassent ce qu'ils trouvent sur leur chemin
@@ -906,6 +911,7 @@ function allyPickUp(u) {
 function allyAct(p) {
   const h = hero();
   if (!p || p.ko || p.hp <= 0) return;
+  if (R.ctf && typeof ctfAct === "function") { ctfAct(p); return; }   // Capture de Relique
   if (!canActStatus(p)) return;
   const hb = (p.bag || []).findIndex(id => ITEMS[id] && (ITEMS[id].kind === "heal" || ITEMS[id].kind === "fullheal"));
   if (p.hp < maxHP(p) * 0.33 && hb >= 0) { useItem(hb, p, p.bag); return; }
@@ -921,6 +927,7 @@ function allyAct(p) {
     doAttack(p, mv, d);
     return;
   }
+  if (typeof allyOrderAct === "function" && allyOrderAct(p)) return;     // ordres : Attaquer / Ne plus bouger
   const foes = R.enemies.filter(e => isVisible(e.x, e.y) && cheb(e, p) <= 5 && !e.dormant);
   if (foes.length && cheb(p, h) <= 4) {
     if (rnd() < 0.5 && tryLineMove(p, foes)) return;
@@ -937,6 +944,7 @@ function partnerAct() { for (const u of teamAllies()) { if (R.gameOver) return; 
 
 function enemyAct(e) {
   if (e.dormant) return;
+  if (R.ctf && typeof ctfAct === "function") { ctfAct(e); return; }
   if (e.fac && e.fac !== "wild" && typeof rivalAct === "function") { rivalAct(e); return; }
   if (!canActStatus(e)) return;
   const team = hostilesOf(e).filter(u => u.kind !== "enemy" || cheb(u, e) <= 4);
@@ -993,6 +1001,7 @@ function heroMove(d) {
   TL.move(h, fx, fy, steps);
   if (steps > 1) msg("Tu glisses sur la glace !");
   onEnterTile(h);
+  if (R.ctf && typeof ctfAfterStep === "function") ctfAfterStep(h);
   return true;
 }
 function onEnterTile(u) {
@@ -1012,7 +1021,7 @@ function onEnterTile(u) {
     } else msg("Ton sac est plein. ", { t: ITEMS[it.id].name, c: "it" }, " reste au sol.");
   }
   // piège
-  const tr = R.traps.find(t => t.x === u.x && t.y === u.y);
+  const tr = R.ctf ? null : R.traps.find(t => t.x === u.x && t.y === u.y);   // (Capture de Relique : voir ctfTrap)
   if (tr && u.kind !== "enemy") {
     tr.seen = true;
     if (tr.kind === "spike") {
@@ -1171,14 +1180,15 @@ let onTurnEnd = null; // branché par l'interface
 function endTurn() {
   R.turn++;
   const h = hero();
-  tickStatus(h);
-  // faim
-  if (R.turn % (locById(R.loc).hunger2 ? 5 : 10) === 0 && R.belly > 0) {
+  const hDown = !!(R.ctf && h.ko);   // Capture de Relique : héros K.O., on regarde l'équipe
+  if (!hDown) tickStatus(h);
+  // faim (pas en Capture de Relique)
+  if (!R.ctf && R.turn % (locById(R.loc).hunger2 ? 5 : 10) === 0 && R.belly > 0) {
     R.belly--;
     if (R.belly === 20) msg({ t: "Ton ventre gargouille…", c: "bad" });
     if (R.belly === 0) msg({ t: "Tu meurs de faim ! Tu perds des PV à chaque pas.", c: "bad" });
   }
-  if (R.belly === 0 && h.hp > 0) {
+  if (!R.ctf && R.belly === 0 && h.hp > 0) {
     h.hp -= 1;
     if (h.hp <= 0) handleKO(h, null);
   }
@@ -1196,6 +1206,7 @@ function endTurn() {
   // apparitions
   if (!R.boss && !R.tour && R.turn % 36 === 0 && R.enemies.length < 10) spawnEnemy(false);
   if (R.tour && !R.gameOver) tourTick();
+  if (R.ctf && typeof ctfTick === "function") ctfTick();
   // éboulements dans les cavernes
   const th = themeOf(R.loc);
   if (th.quake && !R.boss && R.turn > 5 && R.turn % 47 === 0) {
@@ -1214,7 +1225,7 @@ function endTurn() {
   updateVis();
   R.heroSkip = false;
   if (!R.gameOver && !R.bossDefeated && !R.escaped) {
-    if (!canActStatus(h)) R.heroSkip = true;
+    if (!hDown && !canActStatus(h)) R.heroSkip = true;
   }
   if (onTurnEnd) onTurnEnd();
 }
@@ -1222,7 +1233,7 @@ function endTurn() {
 function startRun(locId, startFloor) {
   const loc = locById(locId);
   R = G.run = {
-    loc: loc.id, floor: 1, floors: loc.id === "ARENE" ? 1 : Math.max(2, loc.floors || (3 + (loc.difficulty || 1))),
+    loc: loc.id, floor: 1, floors: loc.id === "ARENE" || loc.id === "RELIQUE" ? 1 : Math.max(2, loc.floors || (3 + (loc.difficulty || 1))),
     belly: 100, turn: 0, gameOver: false, escaped: false, found: 0, startLv: hero().lv,
     bagStart: G.bag.slice(), moneyStart: G.money || 0, money: 0
   };
@@ -1230,6 +1241,7 @@ function startRun(locId, startFloor) {
   G.stats.runs++;
   if (loc.id === "TOURNOI") initTournament();
   if (loc.id === "ARENE") initArena();
+  if (loc.id === "RELIQUE" && typeof initCtf === "function") initCtf();
   if (typeof storyRunInit === "function") storyRunInit();
   if (startFloor > 1) R.floor = Math.min(startFloor, R.floors);
   resetVisuals();
@@ -1249,6 +1261,7 @@ function nextFloor() {
   if (typeof storyFloorSetup === "function") storyFloorSetup();
 }
 function endRun() {
+  if ((R && R.ctf) || G.ctfBackup) { if (typeof ctfRestoreTeam === "function") ctfRestoreTeam(); }   // équipe d'avant le match
   G.team = G.team.filter(u => !u.guest);
   for (const m of G.team) { m.ko = false; m.hp = maxHP(m); m.st = {}; refillPP(m); }
   G.run = null; R = null;

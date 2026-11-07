@@ -591,6 +591,36 @@ ul.plain.small { font-size: 0.82rem; color: var(--dim); }
 .set-help ol { margin: 6px 0 8px 18px; padding: 0; display: grid; gap: 6px; }
 .set-help a { color: var(--lantern); }
 
+/* ---------- v7 : ordres et Capture de Relique ---------- */
+.order-pick { margin-top: 8px; }
+.order-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.order-row .btn { border-color: var(--oc); }
+.order-row .btn.primary { background: var(--oc); color: #10161c; }
+.ctf-pick-list { display: grid; gap: 6px; margin: 8px 0; }
+.ctf-row { display: grid; grid-template-columns: 44px 1fr 28px; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--deep); color: inherit; text-align: left; font: inherit; min-height: 52px; }
+.ctf-row.on { border-color: var(--lantern); background: color-mix(in srgb, var(--lantern) 12%, var(--deep)); }
+.ctf-row.fixed { opacity: 0.85; }
+.ctf-face { width: 44px; height: 44px; image-rendering: pixelated; }
+.ctf-row-t { display: grid; gap: 2px; min-width: 0; }
+.ctf-row-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctf-row-t small { color: var(--dim); font-size: 0.78rem; }
+.ctf-check { color: var(--lantern); font-size: 1.2rem; text-align: center; }
+.hud-tour.ctf { display: grid; gap: 4px; justify-items: start; }
+.ctf-score { display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px; border-radius: 999px; background: rgba(9,20,28,0.85); border: 1.5px solid rgba(255,255,255,0.16); font-size: 0.78rem; max-width: 100%; }
+.ctf-t { display: inline-flex; align-items: center; gap: 5px; color: var(--tc); font-weight: 700; max-width: 9em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ctf-t i { width: 9px; height: 9px; border-radius: 50%; background: var(--tc); display: inline-block; flex: none; }
+.ctf-n { font-size: 0.95rem; color: #fff; }
+.ctf-time { color: var(--dim); font-size: 0.7rem; }
+.ctf-info { font-size: 0.7rem; padding: 2px 8px; border-radius: 8px; background: rgba(9,20,28,0.72); color: #dfe8ef; max-width: 100%; }
+.ctf-info.ko { color: #ffcf8a; border: 1px solid rgba(255,179,71,0.5); }
+.ctf-team { display: flex; flex-wrap: wrap; gap: 4px; }
+.ctf-pill { position: relative; display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px 4px; border-radius: 8px; background: rgba(9,20,28,0.8); font-size: 0.66rem; overflow: hidden; border: 1px solid rgba(140,240,170,0.35); }
+.ctf-pill.hero { border-color: rgba(255,179,71,0.7); }
+.ctf-pill em { font-style: normal; color: #8cf0aa; }
+.ctf-pill > i { position: absolute; left: 0; bottom: 0; height: 2px; background: #7ce38a; }
+.ctf-pill.ko { opacity: 0.45; text-decoration: line-through; }
+.hud.ctf .hud-units, .hud.ctf #huBelly { display: none; }
+
 </style>
 
 <main class="app" id="app">
@@ -1006,7 +1036,8 @@ const DROP = { wild: 30, rival: 60, coinShare: 45 };
 // Lieux spéciaux du chapitre 2 (pas modifiables dans l’Atelier)
 const SPECIAL_LOCS = {
   TOURNOI: { id: "TOURNOI", name: "Donjon du Tournoi", floors: 8, crew: true, difficulty: 2, themeOf: "TOURNOI", common_monsters: ["011", "014", "017", "020", "025", "018", "027", "013", "016"] },
-  ARENE: { id: "ARENE", name: "Arène du Royaume", floors: 1, difficulty: 2, themeOf: "ARENE", common_monsters: ["011"] }
+  ARENE: { id: "ARENE", name: "Arène du Royaume", floors: 1, difficulty: 2, themeOf: "ARENE", common_monsters: ["011"] },
+  RELIQUE: { id: "RELIQUE", name: "Capture de Relique", floors: 1, difficulty: 2, themeOf: "ARENE", common_monsters: [] }
 };
 const RANGE_LABELS = { front: "Devant", line: "En ligne", room: "Salle entière", self: "Soi-même" };
 
@@ -2740,7 +2771,7 @@ function maxHP(u) {
   const b = monById(u.mid);
   let v = Math.round((b.hp || 40) * (0.8 + u.lv * 0.08) * rarityOf(u.mid).mul) + 4 + equipBonus(u, "hp");
   if (u.boss) v = Math.round(v * (u.bossMul || 2.6));
-  else if (u.kind === "enemy") v = Math.round(v * 0.85);
+  else if (u.kind === "enemy" && u.fac !== "ctfB") v = Math.round(v * 0.85);   // (Capture de Relique : à armes égales)
   if (u.shadow) v = Math.round(v * 1.1);
   if (u.kind === "enemy" && typeof donjonForce === "function") v = Math.max(1, Math.round(v * donjonForce(u)));
   return v;
@@ -2837,6 +2868,7 @@ function hostilesOf(u) { return u.kind === "enemy" ? activeTeam().concat(R.enemi
 //  GÉNÉRATION D'ÉTAGE
 // ------------------------------------------------------------
 function genFloor() {
+  if (R.ctf && typeof ctfGenFloor === "function") { ctfGenFloor(); return; }   // Capture de Relique
   const loc = locById(R.loc);
   const th = themeOf(R.loc);
   const isBoss = R.floor >= R.floors;
@@ -3094,6 +3126,7 @@ function spawnEnemy(initial) {
 //  VISIBILITÉ
 // ------------------------------------------------------------
 function updateVis() {
+  if (R.ctf && typeof ctfUpdateVis === "function") { ctfUpdateVis(); return; }
   const h = hero();
   VISMAP = new Uint8Array(R.w * R.h);
   const th = themeOf(R.loc);
@@ -3174,19 +3207,19 @@ const FX = [];      // effets (popups, projectiles, éclats)
 let GHOSTS = [];    // unités K.O. encore affichées
 function vis(u) { return VIS[u.uid] || (VIS[u.uid] = { tw: [], atk: null, hurt: 0 }); }
 const TL = {
-  cursor: 0, moveStart: null, moveEnd: 0, events: [],
+  cursor: 0, moveStart: null, moveEnd: 0, events: [], k: 1,   // k : vitesse des animations (Capture de Relique accélérée)
   now() { return performance.now(); },
   base() { return Math.max(this.now(), this.cursor); },
   move(u, fx, fy, steps) {
     if (this.moveStart === null) this.moveStart = this.base();
-    const dur = MOVE_MS * (steps || 1);
+    const dur = MOVE_MS * (steps || 1) * (this.k || 1);
     vis(u).tw.push({ fx, fy, tx: u.x, ty: u.y, t0: this.moveStart, dur });
     this.moveEnd = Math.max(this.moveEnd, this.moveStart + dur);
   },
   action(dur, fn) {
     let t = this.base();
     if (this.moveStart !== null) { t = Math.max(t, this.moveEnd); this.moveStart = null; }
-    this.events.push({ t, fn }); this.cursor = t + dur;
+    this.events.push({ t, fn }); this.cursor = t + dur * (this.k || 1);
   },
   note(fn) {
     const t = this.moveStart !== null ? this.moveEnd : this.base();
@@ -3253,12 +3286,13 @@ function calcDamage(user, target, mv) {
   if (mv.id !== "_basic" && ut.includes(mv.type)) d *= 1.25;
   const tm = typeMult(mv.type, monById(target.mid).types);
   d *= tm;
-  if (user.kind === "enemy") d *= user.boss ? (user.crew ? 0.6 : 0.72) : user.fac ? 0.46 : 0.58; else d *= 1.12;
+  if (R && R.ctf) d *= 0.85;   // Capture de Relique : les deux équipes à armes égales
+  else if (user.kind === "enemy") d *= user.boss ? (user.crew ? 0.6 : 0.72) : user.fac ? 0.46 : 0.58; else d *= 1.12;
   d *= clamp(1 + (user.lv - target.lv) * 0.03, 0.7, 1.5);
   const crit = rnd() < 0.06; if (crit) d *= 1.5;
   d *= 0.85 + rnd() * 0.15;
   // un coup ennemi ne retire jamais plus d'un tiers des PV max (45 % pour un gardien)
-  if (user.kind === "enemy" && target.kind !== "enemy") d = Math.min(d, maxHP(target) * (user.boss ? 0.4 : user.fac ? 0.22 : 0.3));
+  if (user.kind === "enemy" && target.kind !== "enemy" && !(R && R.ctf)) d = Math.min(d, maxHP(target) * (user.boss ? 0.4 : user.fac ? 0.22 : 0.3));
   return { dmg: Math.max(1, Math.round(d)), tm, crit };
 }
 function moveRange(mv) { return mv.range || (mv.effect === "hit_all" ? "room" : mv.effect === "heal" ? "self" : "front"); }
@@ -3417,6 +3451,7 @@ function dropLoot(t, rate) {
   TL.note(() => { if (isVisible(x, y)) FX.push({ k: "burst", x, y, col: "#ffd166", t0: performance.now(), dur: 360 }); });
 }
 function handleKO(t, killer) {
+  if (R && R.ctf && typeof ctfKO === "function") { ctfKO(t, killer); return; }   // K.O. jusqu'au prochain point
   if (t.kind === "enemy") {
     R.enemies = R.enemies.filter(e => e !== t);
     const g = { u: t, fade: 0 };
@@ -3569,6 +3604,7 @@ function stepUnit(u, d) {
   u.x = nx; u.y = ny; u.dir = d;
   TL.move(u, fx, fy);
   if (isAllyKind(u)) allyPickUp(u);
+  if (R.ctf && typeof ctfAfterStep === "function") ctfAfterStep(u);
   return true;
 }
 // les coéquipiers ramassent ce qu'ils trouvent sur leur chemin
@@ -3586,6 +3622,7 @@ function allyPickUp(u) {
 function allyAct(p) {
   const h = hero();
   if (!p || p.ko || p.hp <= 0) return;
+  if (R.ctf && typeof ctfAct === "function") { ctfAct(p); return; }   // Capture de Relique
   if (!canActStatus(p)) return;
   const hb = (p.bag || []).findIndex(id => ITEMS[id] && (ITEMS[id].kind === "heal" || ITEMS[id].kind === "fullheal"));
   if (p.hp < maxHP(p) * 0.33 && hb >= 0) { useItem(hb, p, p.bag); return; }
@@ -3601,6 +3638,7 @@ function allyAct(p) {
     doAttack(p, mv, d);
     return;
   }
+  if (typeof allyOrderAct === "function" && allyOrderAct(p)) return;     // ordres : Attaquer / Ne plus bouger
   const foes = R.enemies.filter(e => isVisible(e.x, e.y) && cheb(e, p) <= 5 && !e.dormant);
   if (foes.length && cheb(p, h) <= 4) {
     if (rnd() < 0.5 && tryLineMove(p, foes)) return;
@@ -3617,6 +3655,7 @@ function partnerAct() { for (const u of teamAllies()) { if (R.gameOver) return; 
 
 function enemyAct(e) {
   if (e.dormant) return;
+  if (R.ctf && typeof ctfAct === "function") { ctfAct(e); return; }
   if (e.fac && e.fac !== "wild" && typeof rivalAct === "function") { rivalAct(e); return; }
   if (!canActStatus(e)) return;
   const team = hostilesOf(e).filter(u => u.kind !== "enemy" || cheb(u, e) <= 4);
@@ -3673,6 +3712,7 @@ function heroMove(d) {
   TL.move(h, fx, fy, steps);
   if (steps > 1) msg("Tu glisses sur la glace !");
   onEnterTile(h);
+  if (R.ctf && typeof ctfAfterStep === "function") ctfAfterStep(h);
   return true;
 }
 function onEnterTile(u) {
@@ -3692,7 +3732,7 @@ function onEnterTile(u) {
     } else msg("Ton sac est plein. ", { t: ITEMS[it.id].name, c: "it" }, " reste au sol.");
   }
   // piège
-  const tr = R.traps.find(t => t.x === u.x && t.y === u.y);
+  const tr = R.ctf ? null : R.traps.find(t => t.x === u.x && t.y === u.y);   // (Capture de Relique : voir ctfTrap)
   if (tr && u.kind !== "enemy") {
     tr.seen = true;
     if (tr.kind === "spike") {
@@ -3851,14 +3891,15 @@ let onTurnEnd = null; // branché par l'interface
 function endTurn() {
   R.turn++;
   const h = hero();
-  tickStatus(h);
-  // faim
-  if (R.turn % (locById(R.loc).hunger2 ? 5 : 10) === 0 && R.belly > 0) {
+  const hDown = !!(R.ctf && h.ko);   // Capture de Relique : héros K.O., on regarde l'équipe
+  if (!hDown) tickStatus(h);
+  // faim (pas en Capture de Relique)
+  if (!R.ctf && R.turn % (locById(R.loc).hunger2 ? 5 : 10) === 0 && R.belly > 0) {
     R.belly--;
     if (R.belly === 20) msg({ t: "Ton ventre gargouille…", c: "bad" });
     if (R.belly === 0) msg({ t: "Tu meurs de faim ! Tu perds des PV à chaque pas.", c: "bad" });
   }
-  if (R.belly === 0 && h.hp > 0) {
+  if (!R.ctf && R.belly === 0 && h.hp > 0) {
     h.hp -= 1;
     if (h.hp <= 0) handleKO(h, null);
   }
@@ -3876,6 +3917,7 @@ function endTurn() {
   // apparitions
   if (!R.boss && !R.tour && R.turn % 36 === 0 && R.enemies.length < 10) spawnEnemy(false);
   if (R.tour && !R.gameOver) tourTick();
+  if (R.ctf && typeof ctfTick === "function") ctfTick();
   // éboulements dans les cavernes
   const th = themeOf(R.loc);
   if (th.quake && !R.boss && R.turn > 5 && R.turn % 47 === 0) {
@@ -3894,7 +3936,7 @@ function endTurn() {
   updateVis();
   R.heroSkip = false;
   if (!R.gameOver && !R.bossDefeated && !R.escaped) {
-    if (!canActStatus(h)) R.heroSkip = true;
+    if (!hDown && !canActStatus(h)) R.heroSkip = true;
   }
   if (onTurnEnd) onTurnEnd();
 }
@@ -3902,7 +3944,7 @@ function endTurn() {
 function startRun(locId, startFloor) {
   const loc = locById(locId);
   R = G.run = {
-    loc: loc.id, floor: 1, floors: loc.id === "ARENE" ? 1 : Math.max(2, loc.floors || (3 + (loc.difficulty || 1))),
+    loc: loc.id, floor: 1, floors: loc.id === "ARENE" || loc.id === "RELIQUE" ? 1 : Math.max(2, loc.floors || (3 + (loc.difficulty || 1))),
     belly: 100, turn: 0, gameOver: false, escaped: false, found: 0, startLv: hero().lv,
     bagStart: G.bag.slice(), moneyStart: G.money || 0, money: 0
   };
@@ -3910,6 +3952,7 @@ function startRun(locId, startFloor) {
   G.stats.runs++;
   if (loc.id === "TOURNOI") initTournament();
   if (loc.id === "ARENE") initArena();
+  if (loc.id === "RELIQUE" && typeof initCtf === "function") initCtf();
   if (typeof storyRunInit === "function") storyRunInit();
   if (startFloor > 1) R.floor = Math.min(startFloor, R.floors);
   resetVisuals();
@@ -3929,6 +3972,7 @@ function nextFloor() {
   if (typeof storyFloorSetup === "function") storyFloorSetup();
 }
 function endRun() {
+  if ((R && R.ctf) || G.ctfBackup) { if (typeof ctfRestoreTeam === "function") ctfRestoreTeam(); }   // équipe d'avant le match
   G.team = G.team.filter(u => !u.guest);
   for (const m of G.team) { m.ko = false; m.hp = maxHP(m); m.st = {}; refillPP(m); }
   G.run = null; R = null;
@@ -7431,7 +7475,7 @@ function renderDungeon(now) {
   const th = themeOf(R.loc);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = th.bg; ctx.fillRect(0, 0, DG.cv.width, DG.cv.height);
-  const H0 = hero();
+  const H0 = R.ctf && typeof camUnit === "function" ? camUnit() : hero();
   const [hx, hy] = visPos(H0, now);
   let sx = 0, sy = 0;
   if (DG.shakeAmp > 0) { const k = (now - DG.shakeT0) / 380; if (k < 1) { sx = (Math.random() - 0.5) * DG.shakeAmp * (1 - k); sy = (Math.random() - 0.5) * DG.shakeAmp * (1 - k); } else DG.shakeAmp = 0; }
@@ -7462,6 +7506,7 @@ function renderDungeon(now) {
     ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse((it.x + 0.5) * T, (it.y + 0.78) * T, T * 0.18, T * 0.06, 0, 0, 7); ctx.fill();
     drawItem(ctx, it.id, (it.x + 0.5) * T, (it.y + 0.52) * T, T, now + it.x * 100);
   }
+  if (R.ctf && typeof ctfDrawWorld === "function") ctfDrawWorld(ctx, T, now);   // bases et reliques
   if (th.electric) {
     for (let y = Math.max(0, Math.floor(y0)); y <= y1; y++) for (let x = Math.max(0, x0); x <= x1; x++) {
       if (!inb(x, y) || R.grid[I(x, y)] !== "e" || !isVisible(x, y)) continue;
@@ -7502,6 +7547,7 @@ function renderDungeon(now) {
       if (u.fac && !o.ghost) { const tm = tourTeam(u.fac); ctx.strokeStyle = (tm && tm.col) || "#ff6f61"; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.ellipse(fx, fy - T * 0.04, T * 0.34, T * 0.12, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     }
     drawCreature(ctx, u.mid, fx, fy, T, { t: now + (hashStr(u.uid) % 1000), dir: u.dir, moving: isMoving(u, now), flash, alpha, sleep: (u.st.sleep > 0) || (u.dormant && false), scale: sc, anim, shadow: u.shadow });
+    if (R.ctf && !o.ghost && typeof ctfDrawCarrier === "function") ctfDrawCarrier(ctx, u, fx, fy, T, now, sc);
     if (u.st.frozen > 0) { ctx.fillStyle = "rgba(170,230,255,0.45)"; ctx.fillRect(fx - T * 0.36 * sc, fy - T * 0.78 * sc, T * 0.72 * sc, T * 0.74 * sc); }
     const badges = [];
     if (u.st.para > 0) badges.push(["⚡", "#ffd23f"]);
@@ -7555,6 +7601,7 @@ function renderDungeon(now) {
   ctx.fillStyle = "rgba(4,7,11,0.88)"; ctx.beginPath();
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!inb(x, y) || (!isVisible(x, y) && !R.explored[I(x, y)])) ctx.rect(x * P - camX, y * P - camY, P, P);
   ctx.fill();
+  if (R.ctf && typeof ctfDrawHidden === "function") { ctx.setTransform(dpr, 0, 0, dpr, -camX, -camY); ctfDrawHidden(ctx, T, now); ctx.setTransform(1, 0, 0, 1, 0, 0); }   // porteurs toujours visibles
   // ambiances
   const pxh = ((hx + 0.5) * T) * dpr - camX, pyh = ((hy + 0.5) * T) * dpr - camY;
   if (th.fog && !R.boss) {
@@ -7595,9 +7642,10 @@ function renderMini(now) {
   c.fillStyle = "#7ce3ff";
   for (const it of R.items) if (R.explored[I(it.x, it.y)] || R.revealed) c.fillRect(it.x * scale + scale * 0.25, it.y * scale + scale * 0.25, scale * 0.5 + 1, scale * 0.5 + 1);
   for (const e of R.enemies) if (isVisible(e.x, e.y)) { const tm = e.fac ? tourTeam(e.fac) : null; c.fillStyle = tm ? tm.col : "#ff6f61"; c.fillRect(e.x * scale, e.y * scale, scale, scale); }
+  if (R.ctf && typeof ctfMini === "function") ctfMini(c, scale, now);
   for (const p of teamAllies()) { c.fillStyle = p.kind === "ally" ? "#8cf0aa" : "#7adcff"; c.fillRect(p.x * scale, p.y * scale, scale, scale); }
   const hh = hero(); const blink = Math.floor(now / 300) % 2;
-  c.fillStyle = blink ? "#ffffff" : "#ffb347"; c.fillRect(hh.x * scale - 1, hh.y * scale - 1, scale + 2, scale + 2);
+  if (!(R.ctf && hh.ko)) { c.fillStyle = blink ? "#ffffff" : "#ffb347"; c.fillRect(hh.x * scale - 1, hh.y * scale - 1, scale + 2, scale + 2); }
 }
 function setTxt(key, node, v) { if (DG.hud[key] !== v) { DG.hud[key] = v; node.textContent = v; } }
 function setW(key, node, v) { if (DG.hud[key] !== v) { DG.hud[key] = v; node.style.width = v; } }
@@ -7605,12 +7653,15 @@ function updateHud(dt) {
   if (!R) return;
   const loc = locById(R.loc);
   setTxt("loc", $("#hudLoc"), loc.name);
-  setTxt("floor", $("#hudFloor"), R.arena ? "Arène" : R.boss ? (R.loc === "TOURNOI" ? "Finale" : R.siege ? "Siège" : "Gardien") : "É" + R.floor + "/" + (R.loc === "TOURNOI" ? 7 : R.floors));
+  setTxt("floor", $("#hudFloor"), R.ctf ? "" : R.arena ? "Arène" : R.boss ? (R.loc === "TOURNOI" ? "Finale" : R.siege ? "Siège" : "Gardien") : "É" + R.floor + "/" + (R.loc === "TOURNOI" ? 7 : R.floors));
   $("#huRecruit").hidden = !G.team[2];
   setTxt("bagn", $("#btnBag b"), G.bag.length + "/" + BAG_MAX);
   const tt = typeof tourHudText === "function" ? tourHudText() : null;
-  const tb = $("#hudTour"); tb.hidden = !tt;
-  if (tt) { const key = JSON.stringify(tt); if (DG.hud.tour !== key) { DG.hud.tour = key; tb.replaceChildren(...tt.map(t => { const c = el("span", "tt" + (t.here ? " here" : "") + (t.st === "✗" || t.st === "Fuite" ? " out" : "")); c.style.setProperty("--tc", t.col); c.append(el("i"), document.createTextNode(t.name + " "), el("b", "pix", t.st)); return c; })); } }
+  const tb = $("#hudTour");
+  tb.parentElement.classList.toggle("ctf", !!R.ctf);
+  if (R.ctf && typeof ctfHud === "function") { tb.hidden = false; ctfHud(tb); }
+  else { if (tb.classList.contains("ctf")) { tb.classList.remove("ctf"); DG.hud.tour = null; DG.hud.ctf = null; } tb.hidden = !tt; }
+  if (tt && !R.ctf) { const key = JSON.stringify(tt); if (DG.hud.tour !== key) { DG.hud.tour = key; tb.replaceChildren(...tt.map(t => { const c = el("span", "tt" + (t.here ? " here" : "") + (t.st === "✗" || t.st === "Fuite" ? " out" : "")); c.style.setProperty("--tc", t.col); c.append(el("i"), document.createTextNode(t.name + " "), el("b", "pix", t.st)); return c; })); } }
   for (const [u, id] of [[hero(), "#huHero"], [partner(), "#huPartner"], [G.team[2], "#huRecruit"]]) {
     if (!u) continue;
     const box = $(id); const mx = maxHP(u);
@@ -7656,7 +7707,7 @@ function openLog() {
   openSheet({ title: "Journal", body, actions: [{ label: "Fermer", cls: "ghost" }], tall: true });
 }
 
-function blocked() { return !R || TL.busy() || SHEET_OPEN || DIALOG_OPEN || WHEEL.open || DG.transition || DG.running || !!DG.pending || !!R.heroSkip; }
+function blocked() { return !R || TL.busy() || SHEET_OPEN || DIALOG_OPEN || WHEEL.open || DG.transition || DG.running || !!DG.pending || !!R.heroSkip || !!(R.ctf && hero().ko); }
 function dungeonAct(fn) {
   if (blocked()) return false;
   DG.path = null;
@@ -7666,7 +7717,8 @@ function dungeonAct(fn) {
 }
 onTurnEnd = () => {
   const sf = (R.story && !R.gameOver && typeof storyTurnHook === "function") ? storyTurnHook() : null;
-  if (R.gameOver) DG.pending = seqGameOver;
+  if (R.ctf && R.ctf.over) DG.pending = seqCtfEnd;
+  else if (R.gameOver) DG.pending = seqGameOver;
   else if (sf) DG.pending = sf;
   else if (R.recruitOffer) DG.pending = seqRecruitOffer;
   else if (R.tourAllOut === true && !R.boss) { R.tourAllOut = "done"; DG.pending = seqTourFinal; }
@@ -7738,10 +7790,11 @@ async function enterDungeon(locId, startFloor) {
   const loc = locById(locId);
   await floorCard(loc.name, R.boss && loc.tower ? "Étage 100 · Le sommet" : "Étage " + R.floor + (loc.tower ? " / 100" : ""));
   DG.transition = false;
-  setMusic(locId === "ARENE" ? "bgm.boss" : "bgm.donjon." + locId);
+  setMusic(locId === "ARENE" || locId === "RELIQUE" ? "bgm.boss" : "bgm.donjon." + locId);
   msgNow("Tu entres dans ", { t: loc.name, c: "mv" }, ".");
-  if (R.arena) { DG.transition = true; await runDialog([{ who: "presenter", text: "Match d’arène ! L’équipe de {name} contre " + R.tour.teams.map(t => t.name).join(", ") + " ! Que le meilleur gagne !" }]); DG.transition = false; }
-  else if (R.tour) msgNow({ t: "Trois équipes rôdent dans le donjon. Élimine-les toutes !", c: "good" });
+  if (R.ctf && typeof ctfIntro === "function") await ctfIntro();
+  else if (R.arena) { DG.transition = true; await runDialog([{ who: "presenter", text: "Match d’arène ! L’équipe de {name} contre " + R.tour.teams.map(t => t.name).join(", ") + " ! Que le meilleur gagne !" }]); DG.transition = false; }
+  else if (R.tour && !R.ctf) msgNow({ t: "Trois équipes rôdent dans le donjon. Élimine-les toutes !", c: "good" });
   if (!OPTS.hintSeen) showHint();
   if (locId === "L00" && !G.story.ch1Done && CH1.floor1 && !G.story.floor1Seen) { G.story.floor1Seen = true; DG.transition = true; await runDialog(CH1.floor1); DG.transition = false; }
   if (R.story && typeof storyOnFloor === "function") { await storyOnFloor(); if (R && R.boss && !R.siege && R.enemies.some(e => e.boss && e.dormant)) { setMusic("bgm.boss"); await bossIntro(); } }
@@ -7765,7 +7818,7 @@ function resumeDungeon() {
   showScreen("dungeon");
   DG.transition = false; DG.pending = null; DG.path = null; DG.maskGrid = null; DG.snow = null; DG.dispHP = {}; DG.hud = {}; DG.stairsAsked = heroOnStairs();
   msgNow("Exploration reprise : ", { t: locById(R.loc).name, c: "mv" }, ".");
-  setMusic(R.boss ? "bgm.boss" : "bgm.donjon." + R.loc);
+  setMusic(R.boss || R.ctf ? "bgm.boss" : "bgm.donjon." + R.loc);
   if (R.boss && R.enemies.some(e => e.dormant)) bossIntro();
 }
 // Défaite : on recommence le donjon depuis le début
@@ -7873,6 +7926,7 @@ function openPause() { openHeroMenu(); }
 function openPartnerInfo(u) {
   const p = u || partner(); if (!p || p.ko) return;
   const body = el("div", "team-list"); body.append(unitCard(p));
+  if (typeof orderPicker === "function") body.append(orderPicker(p, () => closeSheet()));
   const acts = [{ label: "Fermer", cls: "ghost" }];
   const bi = G.bag.findIndex(x => x === "baie" || x === "baieor");
   if (bi >= 0 && p.hp < maxHP(p)) acts.unshift({ label: "Donner : " + ITEMS[G.bag[bi]].name, cls: "primary", fn: () => dungeonAct(() => useItem(bi, p)) });
@@ -7926,7 +7980,7 @@ function confirmGiveUp() {
   openSheet({
     title: "Abandonner ?", body: el("p", "sheet-text", "Tu quittes le donjon et tu reviens à la carte. Le sac redevient comme à l’entrée."), actions: [
       { label: "Continuer l’exploration", cls: "ghost" },
-      { label: "Abandonner", cls: "danger", fn: () => { const bag = R.bagStart || [], money = R.moneyStart || 0; endRun(); G.bag = bag.slice(); G.money = money; Store.saveGame(G); goMap(); } }
+      { label: "Abandonner", cls: "danger", fn: () => { const bag = R.bagStart || [], money = R.moneyStart || 0, ctf = !!R.ctf; endRun(); G.bag = bag.slice(); G.money = money; Store.saveGame(G); if (ctf) goRoyaume(); else goMap(); } }
     ]
   });
 }
@@ -7937,7 +7991,7 @@ const DIR_BY_SECTOR = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -
 const GS = { id: null, x0: 0, y0: 0, moved: false, long: false, timer: 0 };
 function screenTile(cx, cy) {
   const r = DG.cv.getBoundingClientRect();
-  const [hx, hy] = visPos(hero(), performance.now());
+  const [hx, hy] = visPos(R && R.ctf && typeof camUnit === "function" ? camUnit() : hero(), performance.now());
   const T = DG.T;
   const camX = (hx + 0.5) * T - DG.w / 2, camY = (hy + 0.5) * T - DG.h * 0.46;
   return [Math.floor((cx - r.left + camX) / T), Math.floor((cy - r.top + camY) / T)];
@@ -7987,6 +8041,7 @@ function onLongPress(cx, cy) {
   const [tx, ty] = screenTile(cx, cy);
   const u = unitAt(tx, ty);
   if (u && u.kind === "hero") { openWheel(cx, cy, true); return; }
+  if (R.ctf && hero().ko && !(u && isAllyKind(u))) { openWheel(cx, cy, true); return; }   // héros K.O. : roue des ordres
   if (u && isAllyKind(u)) { sfx("tap"); openPartnerInfo(u); return; }
   if (u && u.kind === "enemy" && unitVisible(u)) { sfx("tap"); openEnemyInfo(u); return; }
   showTip(cx, cy, describeTile(tx, ty));
@@ -8000,6 +8055,7 @@ function lineMoveToward(h, t) {
   return null;
 }
 function onTap(cx, cy) {
+  if (R && R.ctf && hero().ko && !SHEET_OPEN && !DIALOG_OPEN && !WHEEL.open) { if (typeof ctfCycleWatch === "function") ctfCycleWatch(); return; }
   if (!R || blocked()) return;
   const [tx, ty] = screenTile(cx, cy);
   const h = hero();
@@ -8075,7 +8131,12 @@ function dungeonTick(now, dt) {
     if (f === askStairs) f();
     else { DG.running = true; Promise.resolve().then(f).catch(e => console.error(e)).finally(() => { DG.running = false; }); }
   }
-  if (R.heroSkip && !TL.busy() && !SHEET_OPEN && !DIALOG_OPEN && !DG.transition && !DG.running && !DG.pending) { R.heroSkip = false; endTurn(); }
+  TL.k = R.ctf && hero().ko && R.ctf.fast ? 0.25 : 1;
+  if (R.ctf && hero().ko && !R.ctf.over && !TL.busy() && !SHEET_OPEN && !DIALOG_OPEN && !WHEEL.open && !DG.transition && !DG.running && !DG.pending) {
+    // héros K.O. : le match continue tout seul
+    if (!DG.ctfT || now - DG.ctfT > (R.ctf.fast ? 60 : 240)) { DG.ctfT = now; R.heroSkip = false; endTurn(); }
+  }
+  else if (R.heroSkip && !TL.busy() && !SHEET_OPEN && !DIALOG_OPEN && !DG.transition && !DG.running && !DG.pending) { R.heroSkip = false; endTurn(); }
   else if (!blocked()) {
     {
       const d = DG.held || keyDir();
@@ -8101,8 +8162,16 @@ function resizeAll() {
 // ============================================================
 const WHEEL = { open: false, drag: false, cx: 0, cy: 0, opts: [], hover: -1, t0: 0 };
 function wheelOptions() {
+  if (WHEEL.sub === "orders" && typeof orderWheelOptions === "function") return orderWheelOptions();
   const h = hero();
   const o = [];
+  if (R && R.ctf && h.ko) {   // Capture de Relique : héros K.O., on regarde l'équipe
+    o.push({ k: "orders", label: "Ordres", sub: teamOrderText(), col: "#8cf0aa", fn: () => openWheel(WHEEL.cx, WHEEL.cy, false, "orders") });
+    o.push({ k: "team", label: "Équipe", sub: G.team.length + " membres", col: "#7adcff", fn: openTeam });
+    o.push({ k: "fast", label: R.ctf.fast ? "Vitesse normale" : "Accélérer", sub: R.ctf.fast ? "×1" : "×4", col: "#ffd166", fn: () => { R.ctf.fast = !R.ctf.fast; } });
+    o.push({ k: "menu", label: "Menu", sub: "Plus…", col: "#d6c6ff", fn: openHeroMenu });
+    return o;
+  }
   o.push({ k: "atk", label: "Attaque", sub: "∞", col: "#ffb347", fn: () => dungeonAct(() => heroAttack(null)) });
   for (const id of unitMoves(h)) {
     const mv = ATK[id]; const pp = h.pp[id] || 0;
@@ -8112,15 +8181,17 @@ function wheelOptions() {
   const it = itemUnderHero();
   if (it) o.push({ k: "pick", label: "Ramasser", sub: it.id === "or" ? (it.amount || 0) + " p." : ITEMS[it.id].name, col: "#7ce3ff", fn: () => dungeonAct(() => pickUpHere()) });
   if (heroOnStairs()) o.push({ k: "stairs", label: "Escalier", sub: "Descendre", col: "#ffd166", fn: () => askStairs() });
+  if (G.team.length > 1 && typeof orderWheelOptions === "function") o.push({ k: "orders", label: "Ordres", sub: teamOrderText(), col: "#8cf0aa", fn: () => openWheel(WHEEL.cx, WHEEL.cy, false, "orders") });
   o.push({ k: "team", label: "Équipe", sub: G.team.length + " membres", col: "#7adcff", fn: openTeam });
   if (typeof canCallOath === "function" && canCallOath()) o.push({ k: "oath", label: "Serment", sub: "Appeler", col: "#ffd166", fn: openOathCall });
   o.push({ k: "wait", label: "Attendre", sub: "1 tour", col: "#b8c0d0", fn: () => dungeonAct(() => true) });
   o.push({ k: "menu", label: "Menu", sub: "Plus…", col: "#d6c6ff", fn: openHeroMenu });
   return o;
 }
-function openWheel(cx, cy, drag) {
+function openWheel(cx, cy, drag, sub) {
   if (!R || DG.transition || SHEET_OPEN || DIALOG_OPEN) return;
   const wh = $("#wheel"); const ring = $("#wheelRing");
+  WHEEL.sub = sub || null;
   WHEEL.opts = wheelOptions();
   const n = WHEEL.opts.length;
   const vw = window.innerWidth, vh = window.innerHeight;
@@ -8189,6 +8260,96 @@ function chooseWheel(i) {
 function setupWheel() {
   const wh = $("#wheel");
   wh.addEventListener("click", e => { if (e.target === wh) closeWheel(); });
+}
+
+// ============================================================
+//  ORDRES AUX ALLIÉS (tout le jeu)
+//  Roue → « Ordres » : Nous suivre · Attaquer · Ne plus bouger
+//  (+ Défendre la base en Capture de Relique). Maintenir un allié : son ordre à lui.
+//  Donner un ordre ne coûte pas de tour.
+// ============================================================
+const ALLY_ORDERS = {
+  suivre: { label: "Nous suivre", short: "Suivre", col: "#7adcff", icon: "➜" },
+  attaquer: { label: "Attaquer", short: "Attaquer", col: "#ff8a6a", icon: "⚔" },
+  rester: { label: "Ne plus bouger", short: "Rester", col: "#c9d2e0", icon: "■" },
+  defendre: { label: "Défendre la base", short: "Défendre", col: "#8cf0aa", icon: "⛨", ctf: true }
+};
+function orderList() { return Object.keys(ALLY_ORDERS).filter(k => !ALLY_ORDERS[k].ctf || (R && R.ctf)); }
+function orderLabel(k) {
+  if (R && R.ctf && k === "attaquer") return "Prendre la relique";
+  return (ALLY_ORDERS[k] || ALLY_ORDERS.suivre).label;
+}
+function orderOf(u) {
+  if (!u) return "suivre";
+  if (R && R.ctf) return u.ctfOrder || "attaquer";
+  return ALLY_ORDERS[u.order] && !ALLY_ORDERS[u.order].ctf ? u.order : "suivre";
+}
+function setOrder(u, k) {
+  if (!u || !ALLY_ORDERS[k]) return;
+  if (R && R.ctf) u.ctfOrder = k; else u.order = k;
+}
+// alliés concernés (les K.O. de la Capture de Relique gardent l'ordre pour leur retour)
+function orderAllies() { return G.team.slice(1).filter(u => u && (R && R.ctf ? true : !u.ko && u.hp > 0)); }
+function teamOrderKey() {
+  const al = orderAllies(); if (!al.length) return null;
+  const k = orderOf(al[0]);
+  return al.every(u => orderOf(u) === k) ? k : "mixte";
+}
+function teamOrderText() { const k = teamOrderKey(); return !k ? "" : k === "mixte" ? "Mixte" : (ALLY_ORDERS[k].short); }
+function giveOrder(k, units) {
+  const list = units || orderAllies(); if (!list.length) return;
+  for (const u of list) {
+    setOrder(u, k);
+    if (R && R.ctf) u.ctfAuto = false;   // ordre donné par le joueur : on n'y touche plus
+    u.wp = null; u.hold = null;
+    if (R && !u.ko && u.hp > 0) TL.note(() => popup(u, ALLY_ORDERS[k].icon, ALLY_ORDERS[k].col, true));
+  }
+  const who = list.length === 1 ? unitName(list[0]) : "L’équipe";
+  msgNow({ t: "Ordre", c: "mv" }, " · " + who + " : " + orderLabel(k) + ".");
+  toast(who + " : " + orderLabel(k), 1600);
+  if (navigator.vibrate) { try { navigator.vibrate(10); } catch (_) { } }
+  if (typeof Store !== "undefined" && !(R && R.ctf)) Store.saveGame(G);
+}
+// sous-roue des ordres
+function orderWheelOptions() {
+  const cur = teamOrderKey();
+  const o = orderList().map(k => ({ k: "ord-" + k, label: orderLabel(k), sub: cur === k ? "✓ en cours" : "Toute l’équipe", col: ALLY_ORDERS[k].col, fn: () => giveOrder(k) }));
+  o.push({ k: "back", label: "Retour", sub: "Roue", col: "#b8c0d0", fn: () => openWheel(WHEEL.cx, WHEEL.cy, false) });
+  return o;
+}
+// bloc « Ordre » dans la fiche d'un allié (maintenir l'allié)
+function orderPicker(u, after) {
+  const box = el("div", "order-pick");
+  box.append(el("h4", "fld-h", "Ordre pour " + unitName(u)));
+  const row = el("div", "order-row");
+  for (const k of orderList()) {
+    const b = el("button", "btn small" + (orderOf(u) === k ? " primary" : ""), orderLabel(k)); b.type = "button";
+    b.style.setProperty("--oc", ALLY_ORDERS[k].col);
+    b.onclick = () => { sfx("tap"); giveOrder(k, [u]); if (after) after(); };
+    row.append(b);
+  }
+  box.append(row);
+  return box;
+}
+// ---------- comportement des alliés selon l'ordre (hors Capture de Relique) ----------
+// renvoie true si l'ordre a décidé de l'action du tour
+function allyOrderAct(p) {
+  const ord = orderOf(p);
+  if (ord === "rester") {
+    const foes = R.enemies.filter(e => !e.dormant && cheb(e, p) <= 5);
+    if (foes.length && rnd() < 0.7 && tryLineMove(p, foes)) return true;
+    return true;   // ne bouge pas
+  }
+  if (ord === "attaquer") {
+    const foes = R.enemies.filter(e => !e.dormant && cheb(e, p) <= 14 && (isVisible(e.x, e.y) || cheb(e, p) <= 8 || sameArea(e, p)));
+    if (foes.length) {
+      if (rnd() < 0.4 && tryLineMove(p, foes)) return true;
+      foes.sort((a, b) => cheb(a, p) - cheb(b, p));
+      if (stepUnit(p, stepToward(p, foes[0].x, foes[0].y, { maxD: 30 }))) return true;
+    }
+    return false;  // personne à attaquer : il suit l'équipe
+  }
+  return false;
 }
 
 // ============================================================
@@ -8441,6 +8602,559 @@ function arenaPopulate() {
 function tourHudText() {
   if (!R || !R.tour || R.tour.arena) return null;
   return R.tour.teams.map(t => ({ name: t.name, col: t.col, st: t.state === "out" ? "✗" : t.state === "fled" ? "Fuite" : (t.onFloor ? "ICI" : "É" + t.floor), here: t.onFloor && t.state === "in" }));
+}
+
+// ============================================================
+//  ARÈNE · CAPTURE DE RELIQUE (5 contre 5)
+//  Deux équipes, deux bases, deux reliques. On vole la relique adverse
+//  et on la ramène dans sa base : 1 point. Premier à 3 points.
+//  Règle « simple » : une relique lâchée tombe au sol, n'importe qui la ramasse
+//  (sa propre équipe la renvoie direct à sa base). On marque même si sa relique est volée.
+//  Un K.O. disparaît jusqu'au prochain point. Pas de créatures sauvages.
+// ============================================================
+const CTF_W = 76, CTF_H = 44, CTF_WIN = 3, CTF_MAX_TURNS = 1000, CTF_COL_A = "#ffb347";
+
+function ctfSide(u) { return u.kind === "enemy" ? "B" : "A"; }
+function ctfOpp(s) { return s === "A" ? "B" : "A"; }
+function ctfAlive(side) { return side === "A" ? activeTeam() : R.enemies.filter(e => e.fac === "ctfB" && e.hp > 0); }
+function ctfByUid(uid) { if (!uid) return null; return G.team.find(u => u.uid === uid && !u.ko && u.hp > 0) || R.enemies.find(e => e.uid === uid) || null; }
+function ctfCarrying(u) { if (!R || !R.ctf || !u) return null; for (const k of ["A", "B"]) { const r = R.ctf.relics[k]; if (r.state === "carried" && r.carrier === u.uid) return k; } return null; }
+function ctfRelicPos(k) { const r = R.ctf.relics[k]; if (r.state === "carried") { const c = ctfByUid(r.carrier); return c ? { x: c.x, y: c.y } : { x: r.home.x, y: r.home.y }; } return { x: r.x, y: r.y }; }
+function ctfInBase(side, x, y) { const b = R.ctf.base[side]; return x >= b.x && y >= b.y && x < b.x + b.w && y < b.y + b.h; }
+function ctfName(side) { return side === "A" ? fillTpl("l’équipe de {name}") : "l’" + R.ctf.nameB; }
+function ctfNameCap(side) { const n = ctfName(side); return n.charAt(0).toUpperCase() + n.slice(1); }
+function ctfCol(side) { return side === "A" ? CTF_COL_A : R.ctf.colB; }
+function ctfTurnsLeft() { return Math.max(0, R.ctf.maxTurns - (R.turn - (R.turn0 || 0))); }
+
+// ---------- choix des 5 ----------
+function ctfCandidates() { return G.team.slice(1).concat(G.reserve || []).filter(u => u && !u.guest); }
+function openCtfTeamPick() {
+  const cands = ctfCandidates();
+  const sel = new Set(cands.slice(0, 0));
+  // pré-sélection : l'équipe actuelle, puis les plus forts du dortoir
+  for (const u of G.team.slice(1)) if (sel.size < 4 && !u.guest) sel.add(u);
+  for (const u of (G.reserve || []).slice().sort((a, b) => b.lv - a.lv)) if (sel.size < 4) sel.add(u);
+  const render = () => {
+    const body = el("div", "ctf-pick");
+    body.append(el("p", "sheet-text dim", "Choisis 4 coéquipiers dans ton équipe et ton dortoir. Ton héros joue toujours."));
+    const list = el("div", "ctf-pick-list");
+    const heroRow = el("div", "ctf-row on fixed");
+    const hc = el("canvas", "ctf-face"); heroRow.append(hc, ctfRowText(hero(), "Ton héros"));
+    list.append(heroRow); requestAnimationFrame(() => paintPortrait(hc, hero().mid, { still: true }));
+    for (const u of cands) {
+      const on = sel.has(u);
+      const b = el("button", "ctf-row" + (on ? " on" : "")); b.type = "button";
+      const cv = el("canvas", "ctf-face");
+      b.append(cv, ctfRowText(u, G.team.includes(u) ? "Équipe" : "Dortoir"), el("b", "ctf-check", on ? "✓" : ""));
+      b.onclick = () => { sfx("tap"); if (sel.has(u)) sel.delete(u); else if (sel.size < 4) sel.add(u); else { toast("4 coéquipiers maximum : retire-en un d’abord.", 1800); return; } render(); };
+      list.append(b);
+      requestAnimationFrame(() => paintPortrait(cv, u.mid, { still: true }));
+    }
+    body.append(list);
+    const miss = 4 - sel.size;
+    body.append(el("p", "sheet-note", sel.size + "/4 coéquipiers" + (miss > 0 ? " · " + miss + " renfort" + (miss > 1 ? "s" : "") + " de l’Arène complétera" + (miss > 1 ? "nt" : "") + " ton équipe." : ".")));
+    openSheet({
+      title: "Ton équipe de 5", body, tall: true, actions: [
+        { label: "Annuler", cls: "ghost" },
+        { label: "Lancer le match", cls: "primary", fn: () => ctfStart(cands.filter(u => sel.has(u))) }
+      ]
+    });
+  };
+  render();
+}
+function ctfRowText(u, where) {
+  const t = el("span", "ctf-row-t");
+  t.append(el("b", null, unitName(u)), el("small", null, "Niv. " + u.lv + " · " + (monById(u.mid).types || []).join("/") + " · " + where));
+  return t;
+}
+function ctfStart(chosen) {
+  if (G.ctfBackup) ctfRestoreTeam();   // sécurité : jamais deux sauvegardes d'équipe l'une sur l'autre
+  chosen = chosen.filter(u => G.team.includes(u) || (G.reserve || []).includes(u)).slice(0, 4);
+  G.ctfBackup = { team: G.team.map(u => u.uid), reserve: (G.reserve || []).map(u => u.uid) };
+  const benched = G.team.slice(1).filter(u => !chosen.includes(u));
+  G.reserve = (G.reserve || []).filter(u => !chosen.includes(u)).concat(benched);
+  G.team = [hero()].concat(chosen);
+  const lv = Math.max(1, Math.round(G.team.reduce((s, u) => s + u.lv, 0) / G.team.length));
+  const used = G.team.map(u => u.mid);
+  while (G.team.length < 5) {
+    const mid = tourMids(1, used)[0]; used.push(mid);
+    const u = makeUnit(mid, lv, "ally"); u.loan = true;
+    G.team.push(u);
+  }
+  if (typeof Store !== "undefined") Store.saveGame(G);
+  enterDungeon("RELIQUE");
+}
+// remet l'équipe et le dortoir comme avant le match
+function ctfRestoreTeam(g) {
+  g = g || G;
+  const b = g.ctfBackup;
+  const all = g.team.concat(g.reserve || []).filter(u => u && !u.loan);
+  if (b) {
+    const by = uid => all.find(u => u.uid === uid);
+    const team = b.team.map(by).filter(Boolean), res = b.reserve.map(by).filter(Boolean);
+    for (const u of all) if (!team.includes(u) && !res.includes(u)) res.push(u);
+    if (team.length && team[0].kind === "hero") { g.team = team; g.reserve = res; }
+    else { g.team = g.team.filter(u => !u.loan); }
+    delete g.ctfBackup;
+  } else g.team = g.team.filter(u => !u.loan);
+  for (const u of g.team.concat(g.reserve || [])) { delete u.ctfOrder; delete u.ctfAuto; delete u.hold; u.ko = false; if (MON[u.mid]) { u.hp = maxHP(u); u.st = {}; refillPP(u); } }
+}
+
+// ---------- début du match ----------
+function initCtf() {
+  R.floors = 1;
+  const lv = Math.max(1, Math.round(G.team.reduce((s, u) => s + u.lv, 0) / G.team.length));
+  const nm = RIVAL_TEAM_NAMES.slice().sort(() => rnd() - 0.5)[0];
+  const used = G.team.map(u => u.mid);
+  const mids = tourMids(5, used);
+  R.ctf = { score: { A: 0, B: 0 }, nameB: nm.name, colB: nm.col, relics: {}, base: {}, bagB: ["baie", "baie", "baie"], outB: [], maxTurns: CTF_MAX_TURNS, sudden: false, over: null, lv, watch: null, fast: false, points: 0 };
+  R.tour = { arena: true, ctf: true, log: [], teams: [{ fac: "ctfB", name: nm.name, col: nm.col, kind: "rival", floor: 1, state: "in", onFloor: true, bag: [], members: [] }] };
+  const rolesB = ["attaquer", "attaquer", "defendre", "defendre", "suivre"];
+  R.ctf.startB = mids.map((mid, i) => { const u = makeRival(mid, lv + (i === 0 ? 1 : 0), "ctfB", nm.name); u.ctfOrder = rolesB[i]; u.ctfAuto = true; return u; });
+  const rolesA = ["attaquer", "defendre", "attaquer", "suivre"];
+  G.team.slice(1).forEach((u, i) => { u.ctfOrder = rolesA[i % rolesA.length]; u.ctfAuto = true; });
+}
+function ctfGenFloor() {
+  const W = CTF_W, H = CTF_H, half = W >> 1;
+  R.w = W; R.h = H;
+  R.grid = new Array(W * H).fill("#"); R.roomAt = new Array(W * H).fill(-1); R.rooms = [];
+  R.items = []; R.traps = []; R.enemies = [];
+  R.explored = new Array(W * H).fill(0);
+  R.revealed = false; R.boss = false; R.bossDefeated = false; R.stairs = null;
+  // moitié gauche : grille 3 × 3, base au milieu à gauche ; puis miroir
+  const cxN = 3, cyN = 3, cw = Math.floor((half - 1) / cxN), ch = Math.floor((H - 2) / cyN);
+  const cells = [];
+  for (let j = 0; j < cyN; j++) for (let i = 0; i < cxN; i++) {
+    const ox = 1 + i * cw, oy = 1 + j * ch;
+    let r = null;
+    if (i === 0 && j === 1) r = { x: 2, y: oy + ((ch - 9) >> 1), w: 9, h: 9, base: true };
+    else if (i === 2 || rnd() < 0.85) {
+      const rw = ri(5, Math.min(10, cw - 3)), rh = ri(4, Math.min(9, ch - 3));
+      r = { x: ox + 1 + ri(0, Math.max(0, cw - rw - 2)), y: oy + 1 + ri(0, Math.max(0, ch - rh - 2)), w: rw, h: rh };
+    }
+    if (r) { r.id = R.rooms.length; R.rooms.push(r); cells.push({ i, j, room: r.id, px: r.x + (r.w >> 1), py: r.y + (r.h >> 1) }); }
+    else cells.push({ i, j, room: -1, px: ox + ri(2, cw - 3), py: oy + ri(2, ch - 3) });
+  }
+  const carve = r => { for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) { R.grid[I(x, y)] = "."; R.roomAt[I(x, y)] = r.id; } };
+  R.rooms.forEach(carve);
+  // chemins : arbre couvrant + boucles (plusieurs routes vers chaque base)
+  const cid = (i, j) => j * cxN + i;
+  const seen = new Set([0]), stack = [0], edges = [];
+  while (stack.length) {
+    const c = stack[stack.length - 1], ci = cells[c];
+    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [ci.i + dx, ci.j + dy]).filter(([i, j]) => i >= 0 && j >= 0 && i < cxN && j < cyN).map(([i, j]) => cid(i, j)).filter(n => !seen.has(n));
+    if (!nb.length) { stack.pop(); continue; }
+    const n = pick(nb); seen.add(n); edges.push([c, n]); stack.push(n);
+  }
+  edges.push([cid(0, 1), cid(0, 0)], [cid(0, 1), cid(0, 2)], [cid(0, 1), cid(1, 1)]);
+  for (let k = 0; k < 2; k++) { const a = ri(0, cells.length - 1), ca = cells[a]; const o = [[1, 0], [0, 1]].map(([dx, dy]) => [ca.i + dx, ca.j + dy]).filter(([i, j]) => i < cxN && j < cyN).map(([i, j]) => cid(i, j)); if (o.length) edges.push([a, pick(o)]); }
+  for (const [a, b] of edges) carveCorridor(cells[a], cells[b]);
+  for (const c of cells) if (c.room < 0 && R.grid[I(c.px, c.py)] === "#") R.grid[I(c.px, c.py)] = ",";
+  // miroir vers la droite
+  const nL = R.rooms.length;
+  for (let y = 0; y < H; y++) for (let x = 0; x < half; x++) { R.grid[I(W - 1 - x, y)] = R.grid[I(x, y)]; }
+  for (let k = 0; k < nL; k++) { const r = R.rooms[k]; const m = { x: W - r.x - r.w, y: r.y, w: r.w, h: r.h, id: R.rooms.length, base: r.base }; R.rooms.push(m); carve(m); }
+  // le centre : une grande salle de combat + trois passages
+  const mid = { x: half - 7, y: (H >> 1) - 5, w: 14, h: 10, id: R.rooms.length, center: true };
+  R.rooms.push(mid); carve(mid);
+  for (let j = 0; j < cyN; j++) { const c = cells[cid(2, j)]; carveCorridor(c, { px: W - 1 - c.px, py: c.py }); }
+  // bases et reliques
+  const bA = R.rooms.find(r => r.base && r.x < half), bB = R.rooms.find(r => r.base && r.x > half);
+  R.ctf.base = { A: { x: bA.x, y: bA.y, w: bA.w, h: bA.h }, B: { x: bB.x, y: bB.y, w: bB.w, h: bB.h } };
+  for (const [k, b] of [["A", bA], ["B", bB]]) { const hx = b.x + (b.w >> 1), hy = b.y + (b.h >> 1); R.ctf.relics[k] = { home: { x: hx, y: hy }, x: hx, y: hy, state: "base", carrier: null }; }
+  // objets et pièges (placés en miroir pour que ce soit juste)
+  for (let k = 0; k < 7; k++) ctfPlacePair("item");
+  for (let k = 0; k < 6; k++) ctfPlacePair("trap");
+  // les deux équipes dans leur base
+  for (const u of G.team) { u.ko = false; ctfPlace(u, "A"); u.dir = [1, 0]; }
+  for (const u of R.ctf.startB) { ctfPlace(u, "B"); u.dir = [-1, 0]; u.aware = true; R.enemies.push(u); }
+  delete R.ctf.startB;
+  for (let y = bA.y - 1; y <= bA.y + bA.h; y++) for (let x = bA.x - 1; x <= bA.x + bA.w; x++) if (inb(x, y)) R.explored[I(x, y)] = 1;
+  R.turn0 = R.turn;
+  updateVis();
+}
+function ctfFreeIn(r, avoidBase) {
+  for (let k = 0; k < 80; k++) {
+    const x = r.x + ri(0, r.w - 1), y = r.y + ri(0, r.h - 1);
+    if (isWall(x, y) || unitAt(x, y)) continue;
+    if (avoidBase && (ctfInBase("A", x, y) || ctfInBase("B", x, y))) continue;
+    if (R.items.some(i => i.x === x && i.y === y) || R.traps.some(t => t.x === x && t.y === y)) continue;
+    if (["A", "B"].some(s => R.ctf.relics[s] && R.ctf.relics[s].home.x === x && R.ctf.relics[s].home.y === y)) continue;
+    return { x, y };
+  }
+  return null;
+}
+function ctfPlacePair(kind) {
+  const half = R.w >> 1;
+  const rooms = R.rooms.filter(r => !r.base && r.x + r.w <= half);
+  for (let k = 0; k < 10; k++) {
+    const p = ctfFreeIn(pick(rooms), true); if (!p) continue;
+    const q = { x: R.w - 1 - p.x, y: p.y };
+    if (isWall(q.x, q.y) || unitAt(q.x, q.y) || R.items.some(i => i.x === q.x && i.y === q.y) || R.traps.some(t => t.x === q.x && t.y === q.y)) continue;
+    if (kind === "item") { const id = randomItem(); R.items.push(makeFloorItem(p.x, p.y, id)); R.items.push(makeFloorItem(q.x, q.y, id)); }
+    else { const t = pick(["spike", "spike", "tp"]); R.traps.push({ x: p.x, y: p.y, kind: t, seen: false }, { x: q.x, y: q.y, kind: t, seen: false }); }
+    return true;
+  }
+  return false;
+}
+function ctfPlace(u, side) {
+  const b = R.ctf.base[side], home = R.ctf.relics[side].home;
+  const spots = [];
+  for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (!(x === home.x && y === home.y) && !isWall(x, y) && !unitAt(x, y)) spots.push({ x, y, d: cheb({ x, y }, home) });
+  spots.sort((a, c) => a.d - c.d);
+  const p = spots.length ? spots[Math.min(spots.length - 1, ri(0, 6))] : { x: b.x, y: b.y };
+  u.x = p.x; u.y = p.y; u.wp = null; u.hold = null;
+  VIS[u.uid] = { tw: [], atk: null, hurt: 0 };
+}
+
+// ---------- vision : tout ce que voit l'équipe ----------
+function ctfUpdateVis() {
+  VISMAP = new Uint8Array(R.w * R.h);
+  const mark = (x, y) => { if (inb(x, y)) { VISMAP[I(x, y)] = 1; R.explored[I(x, y)] = 1; } };
+  for (const u of activeTeam()) {
+    const r = roomOf(u.x, u.y);
+    if (r >= 0) { const rm = R.rooms[r]; for (let y = rm.y - 1; y <= rm.y + rm.h; y++) for (let x = rm.x - 1; x <= rm.x + rm.w; x++) mark(x, y); }
+    else for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) mark(u.x + x, u.y + y);
+  }
+}
+// caméra : le héros, ou l'allié qu'on regarde quand le héros est K.O.
+function camUnit() {
+  const h = hero();
+  if (!R || !R.ctf || !h.ko) return h;
+  const al = activeTeam();
+  return al.find(u => u.uid === R.ctf.watch) || al[0] || h;
+}
+function ctfCycleWatch() {
+  const al = activeTeam(); if (!al.length) return;
+  const i = al.findIndex(u => u.uid === (camUnit() || {}).uid);
+  const n = al[(i + 1) % al.length]; R.ctf.watch = n.uid;
+  toast("Tu regardes " + unitName(n), 1200);
+}
+
+// ---------- déplacements : pièges, reliques, points ----------
+function ctfAfterStep(u) {
+  if (!R || !R.ctf || u.hp <= 0 || u.ko) return;
+  ctfTrap(u);
+  if (u.hp <= 0 || u.ko || !R.ctf || R.ctf.over) return;
+  // les adversaires ramassent les baies au sol pour leur équipe
+  if (u.kind === "enemy") {
+    const it = R.items.find(i => i.x === u.x && i.y === u.y);
+    if (it && ITEMS[it.id] && /heal/.test(ITEMS[it.id].kind) && R.ctf.bagB.length < 6) { R.ctf.bagB.push(it.id); R.items = R.items.filter(i => i !== it); msgIf(u, N(u), " ramasse ", { t: ITEMS[it.id].name, c: "it" }, "."); }
+  }
+  ctfStep(u);
+}
+function ctfTrap(u) {
+  const tr = R.traps.find(t => t.x === u.x && t.y === u.y); if (!tr) return;
+  if (u.kind !== "enemy" || isVisible(u.x, u.y)) tr.seen = true;
+  if (tr.kind === "spike") {
+    const d = Math.max(4, Math.round(maxHP(u) * 0.12));
+    u.hp -= d;
+    msgIf(u, N(u), " marche sur un ", { t: "piège à pics", c: "bad" }, " !");
+    TL.note(() => { if (unitVisible(u)) { popup(u, String(d), "#ff8080"); vis(u).hurt = performance.now(); sfx("hit"); } });
+    if (u.hp <= 0) handleKO(u, null);
+  } else {
+    const rooms = R.rooms.filter(r => !r.base);
+    for (let k = 0; k < 40; k++) {
+      const r = pick(rooms), x = r.x + ri(0, r.w - 1), y = r.y + ri(0, r.h - 1);
+      if (isWall(x, y) || unitAt(x, y)) continue;
+      msgIf(u, "Un ", { t: "piège de téléportation", c: "bad" }, " envoie ", N(u), " ailleurs !");
+      u.x = x; u.y = y; VIS[u.uid] = { tw: [], atk: null, hurt: 0 }; u.wp = null;
+      TL.note(() => sfx("tp"));
+      break;
+    }
+  }
+}
+function ctfStep(u) {
+  const side = ctfSide(u), other = ctfOpp(side);
+  for (const k of ["A", "B"]) {
+    const r = R.ctf.relics[k];
+    if (r.state === "carried" || r.x !== u.x || r.y !== u.y) continue;
+    if (k === side) { if (r.state === "ground") ctfReturnRelic(k, u); }
+    else if (!ctfCarrying(u)) {
+      r.state = "carried"; r.carrier = u.uid;
+      const t = unitName(u) + " s’empare de la relique de " + ctfName(k) + " !";
+      TL.note(() => { pushLog([{ t, c: side === "A" ? "good" : "bad" }]); toast(t, 2200); sfx("pick"); FX.push({ k: "burst", x: u.x, y: u.y, col: ctfCol(k), t0: performance.now(), dur: 520 }); });
+    }
+  }
+  const ro = R.ctf.relics[other];
+  if (ro.state === "carried" && ro.carrier === u.uid && ctfInBase(side, u.x, u.y)) ctfPoint(side, u, "capture");
+}
+function ctfReturnRelic(k, by) {
+  const r = R.ctf.relics[k];
+  r.state = "base"; r.carrier = null; r.x = r.home.x; r.y = r.home.y;
+  const t = (by ? unitName(by) + " renvoie" : "Retour de") + " la relique de " + ctfName(k) + " à sa base.";
+  TL.note(() => { pushLog([{ t, c: "mv" }]); toast(t, 1800); sfx("tp"); });
+}
+function ctfDropRelic(u) {
+  const k = ctfCarrying(u); if (!k) return;
+  const r = R.ctf.relics[k];
+  r.state = "ground"; r.carrier = null; r.x = u.x; r.y = u.y;
+  const t = "La relique de " + ctfName(k) + " tombe au sol !";
+  TL.note(() => { pushLog([{ t, c: "mv" }]); toast(t, 2000); });
+}
+function ctfPoint(side, by, why) {
+  if (!R.ctf || R.ctf.over) return;
+  R.ctf.score[side]++; R.ctf.points++;
+  const sc = R.ctf.score;
+  const t = why === "wipe" ? ctfNameCap(ctfOpp(side)) + " est entièrement K.O. : 1 point pour " + ctfName(side) + " !" : unitName(by) + " rapporte la relique ! 1 point pour " + ctfName(side) + " !";
+  const board = ctfNameCap("A") + " " + sc.A + " – " + sc.B + " " + R.ctf.nameB;
+  TL.action(600, () => { pushLog([{ t, c: side === "A" ? "good" : "bad" }]); pushLog([{ t: board, c: "mv" }]); toast((side === "A" ? "🏆 " : "⚠️ ") + t, 3200); sfx("level"); shake(6); });
+  if (sc[side] >= CTF_WIN || R.ctf.sudden) { R.ctf.over = side; return; }
+  ctfResetRound();
+}
+function ctfResetRound() {
+  for (const k of ["A", "B"]) { const r = R.ctf.relics[k]; r.state = "base"; r.carrier = null; r.x = r.home.x; r.y = r.home.y; }
+  let back = 0;
+  for (const u of G.team) if (u.ko || u.hp <= 0) { u.ko = false; u.hp = maxHP(u); u.st = {}; ctfPlace(u, "A"); back++; }
+  for (const u of R.ctf.outB) { u.hp = maxHP(u); u.st = {}; ctfPlace(u, "B"); u.aware = true; R.enemies.push(u); back++; }
+  R.ctf.outB = []; R.ctf.watch = null;
+  if (back) msg({ t: "Les K.O. reviennent dans leur base. Les reliques retournent à leur place.", c: "mv" });
+  else msg({ t: "Les reliques retournent à leur place.", c: "mv" });
+}
+// K.O. : on disparaît jusqu'au prochain point
+function ctfKO(t, killer) {
+  ctfDropRelic(t);
+  const g = { u: t, fade: 0 }; GHOSTS.push(g);
+  if (t.kind === "enemy") {
+    R.enemies = R.enemies.filter(e => e !== t); t.hp = 0;
+    const seen = unitVisible(t) || (killer && killer.kind !== "enemy");
+    TL.action(240, () => { g.fade = performance.now(); if (seen) pushLog([N(t), " est K.O. ! Retour au prochain point."]); sfx("ko"); });
+    if (killer && killer.kind !== "enemy") {
+      G.stats.kills++;
+      const xp = Math.round((12 + t.lv * 5) * 1.2 * rarityOf(t.mid).mul * 0.65);
+      for (const m of activeTeam()) gainXP(m, xp);
+    }
+    if (rnd() < 0.3) dropLoot(t, 100);
+    R.ctf.outB.push(t);
+  } else {
+    t.ko = true; t.hp = 0;
+    TL.action(400, () => { g.fade = performance.now(); pushLog([N(t), " est K.O. ! Retour au prochain point."]); sfx("ko"); });
+    if (t.kind === "hero") { R.ctf.watch = null; TL.note(() => toast("Tu es K.O. ! Tu regardes ton équipe jusqu’au prochain point.", 3200)); }
+  }
+  if (!ctfAlive("A").length) ctfPoint("B", null, "wipe");
+  else if (!ctfAlive("B").length) ctfPoint("A", null, "wipe");
+}
+// à la fin de chaque tour
+function ctfTick() {
+  const C = R.ctf; if (!C || C.over) return;
+  if (R.turn % 4 === 0) for (const e of R.enemies) e.hp = Math.min(maxHP(e), e.hp + 1);
+  if (R.turn % 45 === 0 && R.items.length < 18) ctfPlacePair("item");
+  if (R.turn % 140 === 0 && R.traps.length < 20) ctfPlacePair("trap");
+  if (!C.sudden && ctfTurnsLeft() <= 0) {
+    if (C.score.A !== C.score.B) C.over = C.score.A > C.score.B ? "A" : "B";
+    else { C.sudden = true; msg({ t: "Temps écoulé, égalité ! Prolongation : le prochain point gagne !", c: "mv" }); TL.note(() => toast("Prolongation : le prochain point gagne !", 3000)); }
+  } else if (C.sudden && R.turn - (R.turn0 || 0) >= C.maxTurns + 300) C.over = "draw";
+  ctfRebalance("A"); ctfRebalance("B");
+}
+// rôles automatiques : il reste toujours au moins un attaquant (prolongation : tout le monde attaque)
+function ctfRebalance(side) {
+  const alive = ctfAlive(side).filter(u => u.kind !== "hero");
+  const autos = alive.filter(u => u.ctfAuto);
+  if (!autos.length) return;
+  if (R.ctf.sudden) { for (const u of autos) if (orderOf(u) !== "attaquer") { u.ctfOrder = "attaquer"; u.hold = null; } return; }
+  const heroGoes = side === "A" && !hero().ko;
+  if (heroGoes || alive.some(u => orderOf(u) === "attaquer")) return;
+  const pickU = autos.slice().sort((a, b) => (orderOf(a) === "suivre" ? -1 : 0) - (orderOf(b) === "suivre" ? -1 : 0) || b.hp / maxHP(b) - a.hp / maxHP(a))[0];
+  pickU.ctfOrder = "attaquer"; pickU.hold = null;
+  if (side === "A") msg({ t: unitName(pickU) + " part chercher la relique !", c: "mv" });
+}
+
+// ---------- intelligence (nos alliés et l'équipe adverse) ----------
+function ctfFoesNear(u, rad) {
+  const all = u.kind === "enemy" ? activeTeam() : R.enemies.filter(e => e.hp > 0);
+  return all.filter(f => cheb(f, u) <= rad && (sameArea(f, u) || cheb(f, u) <= 3 || ctfCarrying(f))).sort((a, b) => cheb(a, u) - cheb(b, u));
+}
+function ctfGo(u, x, y) {
+  if (u.x === x && u.y === y) return false;
+  let d = stepToward(u, x, y, { maxD: 140 });
+  if (d && stepUnit(u, d)) return true;
+  d = stepToward(u, x, y, { maxD: 140, ignoreAllies: true });
+  if (d && stepUnit(u, d)) return true;
+  // contourner un coéquipier qui bloque
+  const opts = DIRS8.filter(dd => !isWall(u.x + dd[0], u.y + dd[1]) && diagOK(u.x, u.y, dd) && !unitAt(u.x + dd[0], u.y + dd[1]));
+  if (opts.length) { opts.sort((a, b) => cheb({ x: u.x + a[0], y: u.y + a[1] }, { x, y }) - cheb({ x: u.x + b[0], y: u.y + b[1] }, { x, y })); return stepUnit(u, opts[Math.min(opts.length - 1, ri(0, 1))]); }
+  return false;
+}
+function ctfFight(u, foes) {
+  if (!foes.length) return false;
+  if (rnd() < 0.4 && tryLineMove(u, foes)) return true;
+  return ctfGo(u, foes[0].x, foes[0].y);
+}
+function ctfHit(u, adj, prefer) {
+  const a = (prefer && adj.find(x => x[0] === prefer)) || adj.slice().sort((p, q) => p[0].hp - q[0].hp)[0];
+  doAttack(u, chooseMove(u, a[0], u.kind !== "enemy"), a[1]);
+}
+function ctfHeal(u) {
+  if (u.kind === "enemy") {
+    const bi = R.ctf.bagB.findIndex(x => x === "baie" || x === "baieor" || (ITEMS[x] && /heal/.test(ITEMS[x].kind)));
+    if (bi >= 0) {
+      const id = R.ctf.bagB.splice(bi, 1)[0], b = u.hp;
+      u.hp = ITEMS[id].kind === "fullheal" || id === "baieor" ? maxHP(u) : Math.min(maxHP(u), u.hp + (+ITEMS[id].value || 40));
+      if (unitVisible(u)) { msg(N(u), " mange ", { t: ITEMS[id].name, c: "it" }, " !"); TL.note(() => { popup(u, "+" + (u.hp - b), "#7ce38a"); sfx("heal"); }); }
+      return true;
+    }
+  } else {
+    const hb = (u.bag || []).findIndex(id => ITEMS[id] && (ITEMS[id].kind === "heal" || ITEMS[id].kind === "fullheal"));
+    if (hb >= 0) { useItem(hb, u, u.bag); return true; }
+  }
+  const healId = unitMoves(u).find(id => (u.pp[id] || 0) > 0 && ATK[id].effect === "heal");
+  if (healId) { doAttack(u, ATK[healId], u.dir); return true; }
+  return false;
+}
+function ctfAct(u) {
+  if (!u || u.hp <= 0 || u.ko) return;
+  if (!canActStatus(u)) return;
+  const side = ctfSide(u), other = ctfOpp(side);
+  const mine = R.ctf.relics[side], theirs = R.ctf.relics[other];
+  // 1. se soigner
+  if (u.hp < maxHP(u) * 0.35 && rnd() < 0.8 && ctfHeal(u)) return;
+  // 2. le porteur rentre à la base
+  if (theirs.state === "carried" && theirs.carrier === u.uid) {
+    if (ctfGo(u, mine.home.x, mine.home.y)) return;
+    const adj = adjacentFoes(u); if (adj.length) ctfHit(u, adj);
+    return;
+  }
+  const thief = mine.state === "carried" ? ctfByUid(mine.carrier) : null;
+  const adj = adjacentFoes(u);
+  if (adj.length) { ctfHit(u, adj, thief); return; }
+  const ord = orderOf(u);
+  if (ord === "rester") { const f = ctfFoesNear(u, 6); if (f.length && rnd() < 0.7) tryLineMove(u, f); return; }
+  // 3. quelqu'un a volé notre relique : on le poursuit
+  if (thief && (ord === "defendre" || cheb(u, thief) <= 14)) {
+    if (rnd() < 0.35 && tryLineMove(u, [thief])) return;
+    if (ctfGo(u, thief.x, thief.y)) return;
+  }
+  // 4. notre relique est au sol : on la touche pour la renvoyer
+  if (mine.state === "ground" && (ord === "defendre" || cheb(u, mine) <= 12)) { if (ctfGo(u, mine.x, mine.y)) return; }
+  if (ord === "defendre") {
+    const home = mine.home;
+    const near = ctfFoesNear(u, 8).filter(f => cheb(f, home) <= 9);
+    if (near.length && ctfFight(u, near)) return;
+    if (!u.hold || rnd() < 0.04) { const b = R.ctf.base[side]; u.hold = { x: b.x + ri(1, b.w - 2), y: b.y + ri(1, b.h - 2) }; }
+    if (cheb(u, home) > 3 || rnd() < 0.25) ctfGo(u, u.hold.x, u.hold.y);
+    return;
+  }
+  if (ord === "suivre") {
+    const lead = side === "A" ? (!hero().ko ? hero() : null) : (ctfByUid(theirs.carrier) || R.enemies.find(e => e !== u && e.fac === "ctfB" && orderOf(e) === "attaquer"));
+    if (lead) {
+      const foes = ctfFoesNear(u, 5).filter(f => cheb(f, lead) <= 6);
+      if (foes.length && ctfFight(u, foes)) return;
+      if (cheb(u, lead) > 1) ctfGo(u, lead.x, lead.y);
+      return;
+    }
+  }
+  // attaquer (ou suivre sans chef) : vers la relique adverse, en escortant le porteur
+  const foes = ctfFoesNear(u, 5);
+  if (foes.length && (cheb(foes[0], u) <= 3 || rnd() < 0.5) && ctfFight(u, foes)) return;
+  const mate = theirs.state === "carried" ? ctfByUid(theirs.carrier) : null;
+  if (mate && mate !== u) { if (cheb(u, mate) > 2) ctfGo(u, mate.x, mate.y); return; }
+  const tgt = ctfRelicPos(other);
+  ctfGo(u, tgt.x, tgt.y);
+}
+
+// ---------- affichage ----------
+function drawRelic(ctx, x, y, T, col, now, small) {
+  const s = T * (small ? 0.16 : 0.22), b = Math.sin(now / 280) * T * 0.04;
+  ctx.save(); ctx.translate(x, y + b);
+  ctx.shadowColor = col; ctx.shadowBlur = 14;
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -s * 1.5); ctx.lineTo(s, -s * 0.25); ctx.lineTo(0, s * 1.2); ctx.lineTo(-s, -s * 0.25); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.beginPath(); ctx.moveTo(0, -s * 1.5); ctx.lineTo(s * 0.38, -s * 0.25); ctx.lineTo(0, s * 0.15); ctx.lineTo(-s * 0.38, -s * 0.25); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = "rgba(20,12,4,0.85)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, -s * 1.5); ctx.lineTo(s, -s * 0.25); ctx.lineTo(0, s * 1.2); ctx.lineTo(-s, -s * 0.25); ctx.closePath(); ctx.stroke();
+  ctx.restore();
+}
+// bases + reliques posées (dans le monde, avant les créatures)
+function ctfDrawWorld(ctx, T, now) {
+  for (const k of ["A", "B"]) {
+    const b = R.ctf.base[k], col = ctfCol(k);
+    ctx.save(); ctx.globalAlpha = 0.14; ctx.fillStyle = col; ctx.fillRect(b.x * T, b.y * T, b.w * T, b.h * T); ctx.restore();
+    ctx.strokeStyle = col; ctx.globalAlpha = 0.55; ctx.lineWidth = 2; ctx.setLineDash([6, 5]); ctx.strokeRect(b.x * T + 1, b.y * T + 1, b.w * T - 2, b.h * T - 2); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    const h = R.ctf.relics[k].home;
+    ctx.fillStyle = "rgba(30,22,14,0.55)"; ctx.beginPath(); ctx.ellipse((h.x + 0.5) * T, (h.y + 0.74) * T, T * 0.36, T * 0.14, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse((h.x + 0.5) * T, (h.y + 0.74) * T, T * 0.36, T * 0.14, 0, 0, 7); ctx.stroke();
+    const r = R.ctf.relics[k];
+    if (r.state !== "carried") drawRelic(ctx, (r.x + 0.5) * T, (r.y + 0.42) * T, T, col, now);
+  }
+}
+// porteur : relique au-dessus de la tête
+function ctfDrawCarrier(ctx, u, fx, fy, T, now, sc) {
+  const k = ctfCarrying(u); if (!k) return;
+  const col = ctfCol(k), pulse = 0.5 + 0.5 * Math.sin(now / 160);
+  ctx.strokeStyle = col; ctx.globalAlpha = 0.5 + pulse * 0.5; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(fx, fy - T * 0.04, T * 0.44, T * 0.16, 0, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+  drawRelic(ctx, fx, fy - T * 1.12 * (sc || 1), T, col, now, true);
+}
+// après l'obscurité : les porteurs et les reliques restent visibles partout
+function ctfDrawHidden(ctx, T, now) {
+  for (const k of ["A", "B"]) {
+    const r = R.ctf.relics[k], col = ctfCol(k);
+    if (r.state === "carried") {
+      const c = ctfByUid(r.carrier); if (!c || isVisible(c.x, c.y)) continue;
+      const [vx, vy] = visPos(c, now), fx = (vx + 0.5) * T, fy = (vy + 0.84) * T;
+      drawCreature(ctx, c.mid, fx, fy, T, { t: now + (hashStr(c.uid) % 1000), dir: c.dir, moving: isMoving(c, now), alpha: 0.85 });
+      ctfDrawCarrier(ctx, c, fx, fy, T, now, 1);
+    } else if (!isVisible(r.x, r.y)) {
+      ctx.globalAlpha = 0.9; drawRelic(ctx, (r.x + 0.5) * T, (r.y + 0.42) * T, T, col, now); ctx.globalAlpha = 1;
+    }
+  }
+}
+function ctfMini(c, scale, now) {
+  for (const k of ["A", "B"]) { const b = R.ctf.base[k]; c.fillStyle = ctfCol(k); c.globalAlpha = 0.35; c.fillRect(b.x * scale, b.y * scale, b.w * scale, b.h * scale); c.globalAlpha = 1; }
+  const blink = Math.floor(now / 250) % 2;
+  for (const k of ["A", "B"]) {
+    const p = ctfRelicPos(k), r = R.ctf.relics[k];
+    c.fillStyle = blink ? "#ffffff" : ctfCol(k);
+    const s = r.state === "carried" ? 3 : 2;
+    c.fillRect(p.x * scale - s, p.y * scale - s, scale + s * 2, scale + s * 2);
+    c.fillStyle = ctfCol(k); c.fillRect(p.x * scale, p.y * scale, scale, scale);
+  }
+}
+function ctfHud(tb) {
+  const C = R.ctf;
+  const rel = k => { const r = C.relics[k]; if (r.state === "base") return "à la base"; if (r.state === "ground") return "au sol"; const c = ctfByUid(r.carrier); return "portée par " + (c ? unitName(c) : "?"); };
+  const team = G.team.map(u => ({ n: unitName(u).slice(0, 8) + (u.kind === "hero" && !u.ko ? " " + Math.max(0, u.hp) + "/" + maxHP(u) : ""), p: u.ko ? 0 : Math.round(clamp(u.hp / maxHP(u), 0, 1) * 100), ko: !!u.ko, h: u.kind === "hero", o: u.kind === "hero" ? "" : (ALLY_ORDERS[orderOf(u)] || {}).icon || "" }));
+  const data = { a: C.score.A, b: C.score.B, ra: rel("A"), rb: rel("B"), t: C.sudden ? "Prolongation" : ctfTurnsLeft() + " tours", team, ko: hero().ko, w: (camUnit() || {}).uid, fast: C.fast };
+  const key = JSON.stringify(data);
+  if (DG.hud.ctf === key) return; DG.hud.ctf = key;
+  tb.classList.add("ctf");
+  const sc = el("div", "ctf-score");
+  const ta = el("span", "ctf-t"); ta.style.setProperty("--tc", CTF_COL_A); ta.append(el("i"), document.createTextNode(fillTpl("{name}")));
+  const tb2 = el("span", "ctf-t"); tb2.style.setProperty("--tc", C.colB); tb2.append(document.createTextNode(C.nameB.replace(/^Équipe /, "")), el("i"));
+  sc.append(ta, el("b", "pix ctf-n", C.score.A + " – " + C.score.B), tb2, el("small", "ctf-time", data.t));
+  const info = el("div", "ctf-info", "Ta relique : " + data.ra + " · La leur : " + data.rb);
+  const tm = el("div", "ctf-team");
+  for (const u of team) { const p = el("span", "ctf-pill" + (u.ko ? " ko" : "") + (u.h ? " hero" : "")); const bar = el("i"); bar.style.width = u.p + "%"; p.append(el("em", null, u.o), document.createTextNode(u.n), bar); tm.append(p); }
+  const nodes = [sc, info, tm];
+  if (data.ko) { const c = camUnit(); nodes.push(el("div", "ctf-info ko", "K.O. : tu regardes " + (c ? unitName(c) : "ton équipe") + ". Touche l’écran pour changer.")); }
+  tb.replaceChildren(...nodes);
+}
+// Fin du match
+async function seqCtfEnd() {
+  DG.transition = true;
+  await wait(700);
+  const C = R.ctf, win = C.over === "A", draw = C.over === "draw", sc = C.score;
+  const picked = R.money || 0;
+  await runDialog([{ who: "presenter", text: win ? "Et c’est terminé ! L’équipe de {name} remporte la Capture de Relique, " + sc.A + " à " + sc.B + " !" : draw ? "Temps écoulé ! Personne ne marque en prolongation : match nul, " + sc.A + " partout !" : "C’est fini ! " + C.nameB + " l’emporte " + sc.B + " à " + sc.A + "… Quelle bataille quand même !" }]);
+  const prize = win ? 160 + hero().lv * 6 + sc.A * 30 : (draw ? 80 : 40) + sc.A * 30;
+  const shards = win ? 2 : 0;
+  endRun();
+  G.money = (G.money || 0) + prize; G.shards = (G.shards || 0) + shards;
+  G.story.ctf = G.story.ctf || { played: 0, wins: 0 };
+  G.story.ctf.played++; if (win) G.story.ctf.wins++;
+  Store.saveGame(G);
+  DG.transition = false; DG.pending = null;
+  const body = el("div", "result");
+  body.append(el("p", "sheet-text", (win ? "Victoire " : draw ? "Match nul " : "Défaite ") + sc.A + " – " + sc.B + " contre " + C.nameB + "."));
+  body.append(el("p", "sheet-text dim", "+" + prize + " pièces" + (shards ? " · +" + shards + " Éclats d’étoile" : "") + (picked ? " · " + picked + " pièces ramassées" : "") + " · " + G.story.ctf.wins + " victoire" + (G.story.ctf.wins > 1 ? "s" : "") + " en " + G.story.ctf.played + " match" + (G.story.ctf.played > 1 ? "s" : "")));
+  openSheet({ title: win ? "Relique capturée !" : draw ? "Match nul" : "Match perdu", body, noDismiss: true, actions: [{ label: "Rejouer", fn: () => openCtfTeamPick() }, { label: "Retour au Royaume", cls: "primary", fn: goRoyaume }] });
+}
+async function ctfIntro() {
+  DG.transition = true;
+  await runDialog([
+    { who: "presenter", text: "Capture de Relique ! L’équipe de {name} contre " + R.ctf.nameB + " !" },
+    { who: "presenter", text: "Volez la relique adverse et ramenez-la dans votre base. La première équipe à 3 points gagne ! Les K.O. reviennent à chaque point marqué." }
+  ]);
+  DG.transition = false;
+  if (!G.story.ctfHint) { G.story.ctfHint = true; toast("Maintiens ton héros → Ordres : Prendre la relique, Défendre, Nous suivre, Ne plus bouger.", 4200); }
 }
 
 // ============================================================
@@ -8974,14 +9688,31 @@ async function arenaDesk(c) {
   }
   if (G.story.ch2Done) {
     await townTalk([{ who: "registrar", text: "Bienvenue à l’Arène ! Un match pour la gloire… et quelques pièces ?" }]);
+    // type de jeu
+    const kinds = ["Combat d’arène", "Capture de Relique (5 contre 5)", G.team.length >= 3 ? "Rejouer le tournoi (7 étages)" : "Tournoi : il faut 3 membres", "Plus tard"];
+    const kind = await runChoice(kinds, "Quel type de jeu ?");
+    if (kind === 1) {
+      if (!G.story.ctfSeen) {
+        G.story.ctfSeen = true;
+        await townTalk([
+          { who: "registrar", text: "La Capture de Relique ! Deux équipes de cinq, chacune avec sa base et sa relique." },
+          { who: "registrar", text: "Volez la relique adverse et ramenez-la dans votre base : un point. La première équipe à 3 points gagne !" },
+          { who: "registrar", text: "Un K.O. disparaît jusqu’au prochain point marqué. Pas de créatures sauvages : seulement les deux équipes, des objets… et des pièges." }
+        ]);
+      }
+      G.story.rmPos = { x: RM.hero.x, y: RM.hero.y };
+      if (typeof openCtfTeamPick === "function") openCtfTeamPick();
+      return;
+    }
+    if (kind === 2 && G.team.length >= 3) { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("TOURNOI"); return; }
+    if (kind !== 0) return;
     const boom = typeof hasOrder === "function" && hasOrder("victini");
-    const opts = ["Match d’arène : 1 équipe", "Match d’arène : 2 équipes", "Match d’arène : 3 équipes", G.team.length >= 3 ? "Rejouer le tournoi (7 étages)" : "Tournoi : il faut 3 membres", "Plus tard"];
+    const opts = ["Match d’arène : 1 équipe", "Match d’arène : 2 équipes", "Match d’arène : 3 équipes", "Plus tard"];
     if (boom) opts.splice(3, 0, "Arène explosive (Victini) : 3 équipes, gains ×2");
     let ch = await runChoice(opts, "Plus il y a d’équipes, plus la récompense est grosse. Les équipes se battent aussi entre elles !");
     G.story.arenaBoom = false;
-    if (boom && ch === 3) { G.story.arenaBoom = true; ch = 2; } else if (boom && ch > 3) ch--;
+    if (boom && ch === 3) { G.story.arenaBoom = true; ch = 2; }
     if (ch <= 2) { G.story.arenaN = ch + 1; G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("ARENE"); }
-    else if (ch === 3 && G.team.length >= 3) { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("TOURNOI"); }
     return;
   }
   await townTalk([{ who: "registrar", text: "Revenez quand le tournoi ouvrira ses portes !" }]);
@@ -12181,8 +12912,10 @@ function sanitizeSave(g) {
     if (g.run && !LOC[g.run.loc] && !SPECIAL_LOCS[g.run.loc]) g.run = null;
     if (g.run) for (const e of g.run.enemies) { if (!MON[e.mid]) e.mid = DATA.monsters[0].id; e.st = e.st || {}; e.pp = e.pp || {}; }
     if (g.run && g.run.tour) for (const t of g.run.tour.teams || []) for (const e of t.members || []) { if (!MON[e.mid]) e.mid = DATA.monsters[0].id; e.st = e.st || {}; e.pp = e.pp || {}; }
-    { const main = g.team.filter(u => u && !u.guest).slice(0, 3); const guests = g.run ? g.team.filter(u => u && u.guest && MON[u.mid]).slice(0, 1) : []; g.team = main.concat(guests); }
-    if (g.team[2]) g.team[2].kind = "ally";
+    if (g.ctfBackup && !(g.run && g.run.ctf) && typeof ctfRestoreTeam === "function") ctfRestoreTeam(g);   // match de Capture de Relique interrompu
+    if (g.run && g.run.ctf) g.team = g.team.filter(u => u && MON[u.mid]).slice(0, 5);                       // Capture de Relique : 5 joueurs
+    else { const main = g.team.filter(u => u && !u.guest).slice(0, 3); const guests = g.run ? g.team.filter(u => u && u.guest && MON[u.mid]).slice(0, 1) : []; g.team = main.concat(guests); }
+    if (g.team[2] && !(g.run && g.run.ctf)) g.team[2].kind = "ally";
     g.reserve = Array.isArray(g.reserve) ? g.reserve.filter(u => u && MON[u.mid]) : [];
     for (const u of g.reserve) { u.st = u.st || {}; u.pp = u.pp || {}; u.kind = "ally"; }
     g.story.met = g.story.met || {};
@@ -12299,4 +13032,4 @@ try {
 
 })();
 </script>
-<script>window.DMU_VERSION="20261105-2352";if("serviceWorker"in navigator&&location.protocol==="https:"){addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.update&&r.update();}).catch(function(){});});}</script></body></html>
+<script>window.DMU_VERSION="20261107-0340";if("serviceWorker"in navigator&&location.protocol==="https:"){addEventListener("load",function(){navigator.serviceWorker.register("sw.js").then(function(r){r.update&&r.update();}).catch(function(){});});}</script></body></html>

@@ -4,8 +4,16 @@
 // ============================================================
 const WHEEL = { open: false, drag: false, cx: 0, cy: 0, opts: [], hover: -1, t0: 0 };
 function wheelOptions() {
+  if (WHEEL.sub === "orders" && typeof orderWheelOptions === "function") return orderWheelOptions();
   const h = hero();
   const o = [];
+  if (R && R.ctf && h.ko) {   // Capture de Relique : héros K.O., on regarde l'équipe
+    o.push({ k: "orders", label: "Ordres", sub: teamOrderText(), col: "#8cf0aa", fn: () => openWheel(WHEEL.cx, WHEEL.cy, false, "orders") });
+    o.push({ k: "team", label: "Équipe", sub: G.team.length + " membres", col: "#7adcff", fn: openTeam });
+    o.push({ k: "fast", label: R.ctf.fast ? "Vitesse normale" : "Accélérer", sub: R.ctf.fast ? "×1" : "×4", col: "#ffd166", fn: () => { R.ctf.fast = !R.ctf.fast; } });
+    o.push({ k: "menu", label: "Menu", sub: "Plus…", col: "#d6c6ff", fn: openHeroMenu });
+    return o;
+  }
   o.push({ k: "atk", label: "Attaque", sub: "∞", col: "#ffb347", fn: () => dungeonAct(() => heroAttack(null)) });
   for (const id of unitMoves(h)) {
     const mv = ATK[id]; const pp = h.pp[id] || 0;
@@ -15,15 +23,17 @@ function wheelOptions() {
   const it = itemUnderHero();
   if (it) o.push({ k: "pick", label: "Ramasser", sub: it.id === "or" ? (it.amount || 0) + " p." : ITEMS[it.id].name, col: "#7ce3ff", fn: () => dungeonAct(() => pickUpHere()) });
   if (heroOnStairs()) o.push({ k: "stairs", label: "Escalier", sub: "Descendre", col: "#ffd166", fn: () => askStairs() });
+  if (G.team.length > 1 && typeof orderWheelOptions === "function") o.push({ k: "orders", label: "Ordres", sub: teamOrderText(), col: "#8cf0aa", fn: () => openWheel(WHEEL.cx, WHEEL.cy, false, "orders") });
   o.push({ k: "team", label: "Équipe", sub: G.team.length + " membres", col: "#7adcff", fn: openTeam });
   if (typeof canCallOath === "function" && canCallOath()) o.push({ k: "oath", label: "Serment", sub: "Appeler", col: "#ffd166", fn: openOathCall });
   o.push({ k: "wait", label: "Attendre", sub: "1 tour", col: "#b8c0d0", fn: () => dungeonAct(() => true) });
   o.push({ k: "menu", label: "Menu", sub: "Plus…", col: "#d6c6ff", fn: openHeroMenu });
   return o;
 }
-function openWheel(cx, cy, drag) {
+function openWheel(cx, cy, drag, sub) {
   if (!R || DG.transition || SHEET_OPEN || DIALOG_OPEN) return;
   const wh = $("#wheel"); const ring = $("#wheelRing");
+  WHEEL.sub = sub || null;
   WHEEL.opts = wheelOptions();
   const n = WHEEL.opts.length;
   const vw = window.innerWidth, vh = window.innerHeight;

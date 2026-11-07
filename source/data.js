@@ -120,7 +120,8 @@ const DROP = { wild: 30, rival: 60, coinShare: 45 };
 // Lieux spéciaux du chapitre 2 (pas modifiables dans l’Atelier)
 const SPECIAL_LOCS = {
   TOURNOI: { id: "TOURNOI", name: "Donjon du Tournoi", floors: 8, crew: true, difficulty: 2, themeOf: "TOURNOI", common_monsters: ["011", "014", "017", "020", "025", "018", "027", "013", "016"] },
-  ARENE: { id: "ARENE", name: "Arène du Royaume", floors: 1, difficulty: 2, themeOf: "ARENE", common_monsters: ["011"] }
+  ARENE: { id: "ARENE", name: "Arène du Royaume", floors: 1, difficulty: 2, themeOf: "ARENE", common_monsters: ["011"] },
+  RELIQUE: { id: "RELIQUE", name: "Capture de Relique", floors: 1, difficulty: 2, themeOf: "ARENE", common_monsters: [] }
 };
 const RANGE_LABELS = { front: "Devant", line: "En ligne", room: "Salle entière", self: "Soi-même" };
 

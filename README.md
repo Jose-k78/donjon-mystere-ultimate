@@ -9,6 +9,11 @@ Fan game fait par moi et pour moi — José.
 - `index.html` : le jeu.
 - `source/` : le code (voir `source/build.py` pour reconstruire `index.html`).
 
+## Nouveautés (version 6)
+
+- **Ordres aux alliés**, partout dans le jeu : roue d’actions → « Ordres » → Nous suivre, Attaquer, Ne plus bouger (toute l’équipe). Maintenir un allié donne un ordre à lui seul.
+- **Arène · Capture de Relique (5 contre 5)** : tu choisis tes 5 (équipe + dortoir, renforts s’il en manque), une immense carte avec deux bases. Il faut voler la relique adverse et la ramener chez soi ; la première équipe à 3 points gagne. Les K.O. disparaissent jusqu’au prochain point, le porteur est visible partout, objets et pièges apparaissent, rôles automatiques + ordres (Prendre la relique, Défendre la base, Nous suivre, Ne plus bouger). Si ton héros tombe, tu regardes ton équipe (accélérable).
+
 ## Nouveautés (version 5)
 
 - **Paramètres refaits en onglets** : Jeu, Synchro, Sprites, Sons, Sauvegarde, Atelier.

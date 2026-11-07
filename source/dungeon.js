@@ -29,7 +29,7 @@ function renderDungeon(now) {
   const th = themeOf(R.loc);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = th.bg; ctx.fillRect(0, 0, DG.cv.width, DG.cv.height);
-  const H0 = hero();
+  const H0 = R.ctf && typeof camUnit === "function" ? camUnit() : hero();
   const [hx, hy] = visPos(H0, now);
   let sx = 0, sy = 0;
   if (DG.shakeAmp > 0) { const k = (now - DG.shakeT0) / 380; if (k < 1) { sx = (Math.random() - 0.5) * DG.shakeAmp * (1 - k); sy = (Math.random() - 0.5) * DG.shakeAmp * (1 - k); } else DG.shakeAmp = 0; }
@@ -60,6 +60,7 @@ function renderDungeon(now) {
     ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.ellipse((it.x + 0.5) * T, (it.y + 0.78) * T, T * 0.18, T * 0.06, 0, 0, 7); ctx.fill();
     drawItem(ctx, it.id, (it.x + 0.5) * T, (it.y + 0.52) * T, T, now + it.x * 100);
   }
+  if (R.ctf && typeof ctfDrawWorld === "function") ctfDrawWorld(ctx, T, now);   // bases et reliques
   if (th.electric) {
     for (let y = Math.max(0, Math.floor(y0)); y <= y1; y++) for (let x = Math.max(0, x0); x <= x1; x++) {
       if (!inb(x, y) || R.grid[I(x, y)] !== "e" || !isVisible(x, y)) continue;
@@ -100,6 +101,7 @@ function renderDungeon(now) {
       if (u.fac && !o.ghost) { const tm = tourTeam(u.fac); ctx.strokeStyle = (tm && tm.col) || "#ff6f61"; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.ellipse(fx, fy - T * 0.04, T * 0.34, T * 0.12, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
     }
     drawCreature(ctx, u.mid, fx, fy, T, { t: now + (hashStr(u.uid) % 1000), dir: u.dir, moving: isMoving(u, now), flash, alpha, sleep: (u.st.sleep > 0) || (u.dormant && false), scale: sc, anim, shadow: u.shadow });
+    if (R.ctf && !o.ghost && typeof ctfDrawCarrier === "function") ctfDrawCarrier(ctx, u, fx, fy, T, now, sc);
     if (u.st.frozen > 0) { ctx.fillStyle = "rgba(170,230,255,0.45)"; ctx.fillRect(fx - T * 0.36 * sc, fy - T * 0.78 * sc, T * 0.72 * sc, T * 0.74 * sc); }
     const badges = [];
     if (u.st.para > 0) badges.push(["⚡", "#ffd23f"]);
@@ -153,6 +155,7 @@ function renderDungeon(now) {
   ctx.fillStyle = "rgba(4,7,11,0.88)"; ctx.beginPath();
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!inb(x, y) || (!isVisible(x, y) && !R.explored[I(x, y)])) ctx.rect(x * P - camX, y * P - camY, P, P);
   ctx.fill();
+  if (R.ctf && typeof ctfDrawHidden === "function") { ctx.setTransform(dpr, 0, 0, dpr, -camX, -camY); ctfDrawHidden(ctx, T, now); ctx.setTransform(1, 0, 0, 1, 0, 0); }   // porteurs toujours visibles
   // ambiances
   const pxh = ((hx + 0.5) * T) * dpr - camX, pyh = ((hy + 0.5) * T) * dpr - camY;
   if (th.fog && !R.boss) {
@@ -193,9 +196,10 @@ function renderMini(now) {
   c.fillStyle = "#7ce3ff";
   for (const it of R.items) if (R.explored[I(it.x, it.y)] || R.revealed) c.fillRect(it.x * scale + scale * 0.25, it.y * scale + scale * 0.25, scale * 0.5 + 1, scale * 0.5 + 1);
   for (const e of R.enemies) if (isVisible(e.x, e.y)) { const tm = e.fac ? tourTeam(e.fac) : null; c.fillStyle = tm ? tm.col : "#ff6f61"; c.fillRect(e.x * scale, e.y * scale, scale, scale); }
+  if (R.ctf && typeof ctfMini === "function") ctfMini(c, scale, now);
   for (const p of teamAllies()) { c.fillStyle = p.kind === "ally" ? "#8cf0aa" : "#7adcff"; c.fillRect(p.x * scale, p.y * scale, scale, scale); }
   const hh = hero(); const blink = Math.floor(now / 300) % 2;
-  c.fillStyle = blink ? "#ffffff" : "#ffb347"; c.fillRect(hh.x * scale - 1, hh.y * scale - 1, scale + 2, scale + 2);
+  if (!(R.ctf && hh.ko)) { c.fillStyle = blink ? "#ffffff" : "#ffb347"; c.fillRect(hh.x * scale - 1, hh.y * scale - 1, scale + 2, scale + 2); }
 }
 function setTxt(key, node, v) { if (DG.hud[key] !== v) { DG.hud[key] = v; node.textContent = v; } }
 function setW(key, node, v) { if (DG.hud[key] !== v) { DG.hud[key] = v; node.style.width = v; } }
@@ -203,12 +207,15 @@ function updateHud(dt) {
   if (!R) return;
   const loc = locById(R.loc);
   setTxt("loc", $("#hudLoc"), loc.name);
-  setTxt("floor", $("#hudFloor"), R.arena ? "Arène" : R.boss ? (R.loc === "TOURNOI" ? "Finale" : R.siege ? "Siège" : "Gardien") : "É" + R.floor + "/" + (R.loc === "TOURNOI" ? 7 : R.floors));
+  setTxt("floor", $("#hudFloor"), R.ctf ? "" : R.arena ? "Arène" : R.boss ? (R.loc === "TOURNOI" ? "Finale" : R.siege ? "Siège" : "Gardien") : "É" + R.floor + "/" + (R.loc === "TOURNOI" ? 7 : R.floors));
   $("#huRecruit").hidden = !G.team[2];
   setTxt("bagn", $("#btnBag b"), G.bag.length + "/" + BAG_MAX);
   const tt = typeof tourHudText === "function" ? tourHudText() : null;
-  const tb = $("#hudTour"); tb.hidden = !tt;
-  if (tt) { const key = JSON.stringify(tt); if (DG.hud.tour !== key) { DG.hud.tour = key; tb.replaceChildren(...tt.map(t => { const c = el("span", "tt" + (t.here ? " here" : "") + (t.st === "✗" || t.st === "Fuite" ? " out" : "")); c.style.setProperty("--tc", t.col); c.append(el("i"), document.createTextNode(t.name + " "), el("b", "pix", t.st)); return c; })); } }
+  const tb = $("#hudTour");
+  tb.parentElement.classList.toggle("ctf", !!R.ctf);
+  if (R.ctf && typeof ctfHud === "function") { tb.hidden = false; ctfHud(tb); }
+  else { if (tb.classList.contains("ctf")) { tb.classList.remove("ctf"); DG.hud.tour = null; DG.hud.ctf = null; } tb.hidden = !tt; }
+  if (tt && !R.ctf) { const key = JSON.stringify(tt); if (DG.hud.tour !== key) { DG.hud.tour = key; tb.replaceChildren(...tt.map(t => { const c = el("span", "tt" + (t.here ? " here" : "") + (t.st === "✗" || t.st === "Fuite" ? " out" : "")); c.style.setProperty("--tc", t.col); c.append(el("i"), document.createTextNode(t.name + " "), el("b", "pix", t.st)); return c; })); } }
   for (const [u, id] of [[hero(), "#huHero"], [partner(), "#huPartner"], [G.team[2], "#huRecruit"]]) {
     if (!u) continue;
     const box = $(id); const mx = maxHP(u);
@@ -254,7 +261,7 @@ function openLog() {
   openSheet({ title: "Journal", body, actions: [{ label: "Fermer", cls: "ghost" }], tall: true });
 }
 
-function blocked() { return !R || TL.busy() || SHEET_OPEN || DIALOG_OPEN || WHEEL.open || DG.transition || DG.running || !!DG.pending || !!R.heroSkip; }
+function blocked() { return !R || TL.busy() || SHEET_OPEN || DIALOG_OPEN || WHEEL.open || DG.transition || DG.running || !!DG.pending || !!R.heroSkip || !!(R.ctf && hero().ko); }
 function dungeonAct(fn) {
   if (blocked()) return false;
   DG.path = null;
@@ -264,7 +271,8 @@ function dungeonAct(fn) {
 }
 onTurnEnd = () => {
   const sf = (R.story && !R.gameOver && typeof storyTurnHook === "function") ? storyTurnHook() : null;
-  if (R.gameOver) DG.pending = seqGameOver;
+  if (R.ctf && R.ctf.over) DG.pending = seqCtfEnd;
+  else if (R.gameOver) DG.pending = seqGameOver;
   else if (sf) DG.pending = sf;
   else if (R.recruitOffer) DG.pending = seqRecruitOffer;
   else if (R.tourAllOut === true && !R.boss) { R.tourAllOut = "done"; DG.pending = seqTourFinal; }
@@ -336,10 +344,11 @@ async function enterDungeon(locId, startFloor) {
   const loc = locById(locId);
   await floorCard(loc.name, R.boss && loc.tower ? "Étage 100 · Le sommet" : "Étage " + R.floor + (loc.tower ? " / 100" : ""));
   DG.transition = false;
-  setMusic(locId === "ARENE" ? "bgm.boss" : "bgm.donjon." + locId);
+  setMusic(locId === "ARENE" || locId === "RELIQUE" ? "bgm.boss" : "bgm.donjon." + locId);
   msgNow("Tu entres dans ", { t: loc.name, c: "mv" }, ".");
-  if (R.arena) { DG.transition = true; await runDialog([{ who: "presenter", text: "Match d’arène ! L’équipe de {name} contre " + R.tour.teams.map(t => t.name).join(", ") + " ! Que le meilleur gagne !" }]); DG.transition = false; }
-  else if (R.tour) msgNow({ t: "Trois équipes rôdent dans le donjon. Élimine-les toutes !", c: "good" });
+  if (R.ctf && typeof ctfIntro === "function") await ctfIntro();
+  else if (R.arena) { DG.transition = true; await runDialog([{ who: "presenter", text: "Match d’arène ! L’équipe de {name} contre " + R.tour.teams.map(t => t.name).join(", ") + " ! Que le meilleur gagne !" }]); DG.transition = false; }
+  else if (R.tour && !R.ctf) msgNow({ t: "Trois équipes rôdent dans le donjon. Élimine-les toutes !", c: "good" });
   if (!OPTS.hintSeen) showHint();
   if (locId === "L00" && !G.story.ch1Done && CH1.floor1 && !G.story.floor1Seen) { G.story.floor1Seen = true; DG.transition = true; await runDialog(CH1.floor1); DG.transition = false; }
   if (R.story && typeof storyOnFloor === "function") { await storyOnFloor(); if (R && R.boss && !R.siege && R.enemies.some(e => e.boss && e.dormant)) { setMusic("bgm.boss"); await bossIntro(); } }
@@ -363,7 +372,7 @@ function resumeDungeon() {
   showScreen("dungeon");
   DG.transition = false; DG.pending = null; DG.path = null; DG.maskGrid = null; DG.snow = null; DG.dispHP = {}; DG.hud = {}; DG.stairsAsked = heroOnStairs();
   msgNow("Exploration reprise : ", { t: locById(R.loc).name, c: "mv" }, ".");
-  setMusic(R.boss ? "bgm.boss" : "bgm.donjon." + R.loc);
+  setMusic(R.boss || R.ctf ? "bgm.boss" : "bgm.donjon." + R.loc);
   if (R.boss && R.enemies.some(e => e.dormant)) bossIntro();
 }
 // Défaite : on recommence le donjon depuis le début
@@ -471,6 +480,7 @@ function openPause() { openHeroMenu(); }
 function openPartnerInfo(u) {
   const p = u || partner(); if (!p || p.ko) return;
   const body = el("div", "team-list"); body.append(unitCard(p));
+  if (typeof orderPicker === "function") body.append(orderPicker(p, () => closeSheet()));
   const acts = [{ label: "Fermer", cls: "ghost" }];
   const bi = G.bag.findIndex(x => x === "baie" || x === "baieor");
   if (bi >= 0 && p.hp < maxHP(p)) acts.unshift({ label: "Donner : " + ITEMS[G.bag[bi]].name, cls: "primary", fn: () => dungeonAct(() => useItem(bi, p)) });
@@ -524,7 +534,7 @@ function confirmGiveUp() {
   openSheet({
     title: "Abandonner ?", body: el("p", "sheet-text", "Tu quittes le donjon et tu reviens à la carte. Le sac redevient comme à l’entrée."), actions: [
       { label: "Continuer l’exploration", cls: "ghost" },
-      { label: "Abandonner", cls: "danger", fn: () => { const bag = R.bagStart || [], money = R.moneyStart || 0; endRun(); G.bag = bag.slice(); G.money = money; Store.saveGame(G); goMap(); } }
+      { label: "Abandonner", cls: "danger", fn: () => { const bag = R.bagStart || [], money = R.moneyStart || 0, ctf = !!R.ctf; endRun(); G.bag = bag.slice(); G.money = money; Store.saveGame(G); if (ctf) goRoyaume(); else goMap(); } }
     ]
   });
 }
@@ -535,7 +545,7 @@ const DIR_BY_SECTOR = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -
 const GS = { id: null, x0: 0, y0: 0, moved: false, long: false, timer: 0 };
 function screenTile(cx, cy) {
   const r = DG.cv.getBoundingClientRect();
-  const [hx, hy] = visPos(hero(), performance.now());
+  const [hx, hy] = visPos(R && R.ctf && typeof camUnit === "function" ? camUnit() : hero(), performance.now());
   const T = DG.T;
   const camX = (hx + 0.5) * T - DG.w / 2, camY = (hy + 0.5) * T - DG.h * 0.46;
   return [Math.floor((cx - r.left + camX) / T), Math.floor((cy - r.top + camY) / T)];
@@ -585,6 +595,7 @@ function onLongPress(cx, cy) {
   const [tx, ty] = screenTile(cx, cy);
   const u = unitAt(tx, ty);
   if (u && u.kind === "hero") { openWheel(cx, cy, true); return; }
+  if (R.ctf && hero().ko && !(u && isAllyKind(u))) { openWheel(cx, cy, true); return; }   // héros K.O. : roue des ordres
   if (u && isAllyKind(u)) { sfx("tap"); openPartnerInfo(u); return; }
   if (u && u.kind === "enemy" && unitVisible(u)) { sfx("tap"); openEnemyInfo(u); return; }
   showTip(cx, cy, describeTile(tx, ty));
@@ -598,6 +609,7 @@ function lineMoveToward(h, t) {
   return null;
 }
 function onTap(cx, cy) {
+  if (R && R.ctf && hero().ko && !SHEET_OPEN && !DIALOG_OPEN && !WHEEL.open) { if (typeof ctfCycleWatch === "function") ctfCycleWatch(); return; }
   if (!R || blocked()) return;
   const [tx, ty] = screenTile(cx, cy);
   const h = hero();
@@ -673,7 +685,12 @@ function dungeonTick(now, dt) {
     if (f === askStairs) f();
     else { DG.running = true; Promise.resolve().then(f).catch(e => console.error(e)).finally(() => { DG.running = false; }); }
   }
-  if (R.heroSkip && !TL.busy() && !SHEET_OPEN && !DIALOG_OPEN && !DG.transition && !DG.running && !DG.pending) { R.heroSkip = false; endTurn(); }
+  TL.k = R.ctf && hero().ko && R.ctf.fast ? 0.25 : 1;
+  if (R.ctf && hero().ko && !R.ctf.over && !TL.busy() && !SHEET_OPEN && !DIALOG_OPEN && !WHEEL.open && !DG.transition && !DG.running && !DG.pending) {
+    // héros K.O. : le match continue tout seul
+    if (!DG.ctfT || now - DG.ctfT > (R.ctf.fast ? 60 : 240)) { DG.ctfT = now; R.heroSkip = false; endTurn(); }
+  }
+  else if (R.heroSkip && !TL.busy() && !SHEET_OPEN && !DIALOG_OPEN && !DG.transition && !DG.running && !DG.pending) { R.heroSkip = false; endTurn(); }
   else if (!blocked()) {
     {
       const d = DG.held || keyDir();

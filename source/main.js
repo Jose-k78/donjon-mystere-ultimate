@@ -26,8 +26,10 @@ function sanitizeSave(g) {
     if (g.run && !LOC[g.run.loc] && !SPECIAL_LOCS[g.run.loc]) g.run = null;
     if (g.run) for (const e of g.run.enemies) { if (!MON[e.mid]) e.mid = DATA.monsters[0].id; e.st = e.st || {}; e.pp = e.pp || {}; }
     if (g.run && g.run.tour) for (const t of g.run.tour.teams || []) for (const e of t.members || []) { if (!MON[e.mid]) e.mid = DATA.monsters[0].id; e.st = e.st || {}; e.pp = e.pp || {}; }
-    { const main = g.team.filter(u => u && !u.guest).slice(0, 3); const guests = g.run ? g.team.filter(u => u && u.guest && MON[u.mid]).slice(0, 1) : []; g.team = main.concat(guests); }
-    if (g.team[2]) g.team[2].kind = "ally";
+    if (g.ctfBackup && !(g.run && g.run.ctf) && typeof ctfRestoreTeam === "function") ctfRestoreTeam(g);   // match de Capture de Relique interrompu
+    if (g.run && g.run.ctf) g.team = g.team.filter(u => u && MON[u.mid]).slice(0, 5);                       // Capture de Relique : 5 joueurs
+    else { const main = g.team.filter(u => u && !u.guest).slice(0, 3); const guests = g.run ? g.team.filter(u => u && u.guest && MON[u.mid]).slice(0, 1) : []; g.team = main.concat(guests); }
+    if (g.team[2] && !(g.run && g.run.ctf)) g.team[2].kind = "ally";
     g.reserve = Array.isArray(g.reserve) ? g.reserve.filter(u => u && MON[u.mid]) : [];
     for (const u of g.reserve) { u.st = u.st || {}; u.pp = u.pp || {}; u.kind = "ally"; }
     g.story.met = g.story.met || {};

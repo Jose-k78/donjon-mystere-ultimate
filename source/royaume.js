@@ -529,14 +529,31 @@ async function arenaDesk(c) {
   }
   if (G.story.ch2Done) {
     await townTalk([{ who: "registrar", text: "Bienvenue à l’Arène ! Un match pour la gloire… et quelques pièces ?" }]);
+    // type de jeu
+    const kinds = ["Combat d’arène", "Capture de Relique (5 contre 5)", G.team.length >= 3 ? "Rejouer le tournoi (7 étages)" : "Tournoi : il faut 3 membres", "Plus tard"];
+    const kind = await runChoice(kinds, "Quel type de jeu ?");
+    if (kind === 1) {
+      if (!G.story.ctfSeen) {
+        G.story.ctfSeen = true;
+        await townTalk([
+          { who: "registrar", text: "La Capture de Relique ! Deux équipes de cinq, chacune avec sa base et sa relique." },
+          { who: "registrar", text: "Volez la relique adverse et ramenez-la dans votre base : un point. La première équipe à 3 points gagne !" },
+          { who: "registrar", text: "Un K.O. disparaît jusqu’au prochain point marqué. Pas de créatures sauvages : seulement les deux équipes, des objets… et des pièges." }
+        ]);
+      }
+      G.story.rmPos = { x: RM.hero.x, y: RM.hero.y };
+      if (typeof openCtfTeamPick === "function") openCtfTeamPick();
+      return;
+    }
+    if (kind === 2 && G.team.length >= 3) { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("TOURNOI"); return; }
+    if (kind !== 0) return;
     const boom = typeof hasOrder === "function" && hasOrder("victini");
-    const opts = ["Match d’arène : 1 équipe", "Match d’arène : 2 équipes", "Match d’arène : 3 équipes", G.team.length >= 3 ? "Rejouer le tournoi (7 étages)" : "Tournoi : il faut 3 membres", "Plus tard"];
+    const opts = ["Match d’arène : 1 équipe", "Match d’arène : 2 équipes", "Match d’arène : 3 équipes", "Plus tard"];
     if (boom) opts.splice(3, 0, "Arène explosive (Victini) : 3 équipes, gains ×2");
     let ch = await runChoice(opts, "Plus il y a d’équipes, plus la récompense est grosse. Les équipes se battent aussi entre elles !");
     G.story.arenaBoom = false;
-    if (boom && ch === 3) { G.story.arenaBoom = true; ch = 2; } else if (boom && ch > 3) ch--;
+    if (boom && ch === 3) { G.story.arenaBoom = true; ch = 2; }
     if (ch <= 2) { G.story.arenaN = ch + 1; G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("ARENE"); }
-    else if (ch === 3 && G.team.length >= 3) { G.story.rmPos = { x: RM.hero.x, y: RM.hero.y }; enterDungeon("TOURNOI"); }
     return;
   }
   await townTalk([{ who: "registrar", text: "Revenez quand le tournoi ouvrira ses portes !" }]);
